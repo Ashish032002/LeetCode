@@ -7,8 +7,9 @@ class Solution(object):
                 result.append(word1[i])
             if i<len(word2):
                 result.append(word2[i])
-            i += 1
+            i +=1
         return ''.join(result)
+
             
 
 
