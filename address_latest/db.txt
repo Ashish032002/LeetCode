@@ -1,0 +1,21 @@
+Database:
+Indian_postal_pincode_db  : I have a postal_pincode.xl sheet with columns as circlename, regionname, city, pincode, district, state and I want city, pincode, state, create one column as country as india for all in this sheet for my database other than this I don’t want any column in this db
+I’m using upload_postal_pincode.py for this.
+ 
+Indian_rta_pincode_db :I have a rts_pincode.xl sheet with columns as city, pincode, state and create one column as country as india for all in this sheet and upload it as it is
+I’m using upload_rta_pincode.py for this.
+ 
+countries_db : I have countries.xl sheet with columns as id, country upload it as it is.
+I’m using upload_ countries.py for this.
+ 
+world_cities_db : I have world_cities.xl sheet with columns as city, country, iso2, iso3, upload it as it is
+I’m using upload_ world_cities.py for this.
+ 
+t30_cities_db : I have t30_cities.xl sheet with columns as id, city upload it as it is with an additional column as country as India for all 30
+I’m using upload_ t30_cities.py for this.
+ 
+Indian_state_abbreviation_db : I have Indian_state_abbreviation.xl sheet with columns as id, state, abbreviation, upload it as it is
+I’m using upload_ Indian_state_abbreviation.py for this.
+ 
+input_addresses_db : I have input_addresses_demo.xl sheet which is having columns as address1, address2, address3, city, state, country, pincode columns , upload it as it is
+I’m using upload_ input_addresses.py for this.
