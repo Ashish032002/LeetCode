@@ -1,4 +1,5 @@
-import os, re, json, math
+
+import os, re, json
 import pandas as pd
 from sqlalchemy import text
 from db_config import get_engine
@@ -8,19 +9,33 @@ try:
     def sim(a,b): return fuzz.token_set_ratio(str(a or ""), str(b or ""))/100.0
 except Exception:
     import difflib
-    def sim(a,b): return difflib.SequenceMatcher(None, str(a or "").lower(), str(b or "").lower()).ratio()
+    def sim(a,b): 
+        return difflib.SequenceMatcher(None, str(a or "").lower(), str(b or "").lower()).ratio()
 
 THR = 0.80
 PIN_RE = re.compile(r'(?<!\d)(\d{6})(?!\d)')
 
-def norm(s):
-    s = str(s or "").strip()
+DIRECTION_TOKENS = {
+    "west","east","north","south","n","s","e","w","nw","ne","sw","se",
+    "sector","zone","block","phase","ward","dist","district","taluka","taluk","mandal"
+}
+
+def norm_text(s):
+    s = str(s or "")
     s = re.sub(r"[^0-9A-Za-z ,./-]+", " ", s)
     s = re.sub(r"\s+", " ", s)
-    return s
+    return s.strip()
 
 def title(s): 
     return str(s or "").strip().title()
+
+def base_city(city_in: str) -> str:
+    if not city_in: return None
+    tokens = [t for t in re.split(r"[^A-Za-z]+", str(city_in)) if t]
+    kept = [t for t in tokens if t.lower() not in DIRECTION_TOKENS]
+    if not kept:
+        return title(city_in)
+    return title(" ".join(kept))
 
 def extract_all_pins(*fields):
     pins = set()
@@ -38,10 +53,10 @@ def expand_state_from_abbrev(state_in, abbrev_df):
         return title(row.iloc[0]["state"])
     return s
 
-def best_k(items, key, k=5):
-    return sorted(items, key=key, reverse=True)[:k]
+def choose_best(cands, key):
+    return max(cands, key=key) if cands else None
 
-def main(limit=1000, to_excel=True):
+def main(limit=1000, excel_path=None):
     eng = get_engine()
     with eng.begin() as con:
         postal = pd.read_sql("SELECT city,state,pincode,country FROM ref.postal_pincode", con)
@@ -68,142 +83,159 @@ def main(limit=1000, to_excel=True):
         for _, r in df.iterrows():
             pin_map.setdefault(r["pincode"], []).append((src, r))
 
-    results = []
-    audit_rows = []
+    rows = []
+    audits = []
 
     for _, row in inputs.iterrows():
         input_id = int(row["id"])
-        # Concatenated text uses: address1, address2, address3, city, state, country, pincode
-        addr_fields = [row.get(c) for c in ["address1","address2","address3","city","state","country","pincode"]]
-        addr_text = norm(" ".join([str(x or "") for x in addr_fields]))
+        in_addr1 = row.get("address1")
+        in_addr2 = row.get("address2")
+        in_addr3 = row.get("address3")
+        in_city  = title(row.get("city"))
+        in_state = title(row.get("state"))
+        in_country = title(row.get("country"))
+        in_pin   = str(row.get("pincode") or "").strip()
 
-        city_in = title(row.get("city"))
-        state_in= title(row.get("state"))
-        country_in = title(row.get("country"))
-        pin_in = str(row.get("pincode") or "").strip()
-        state_in = expand_state_from_abbrev(state_in, states)
+        concatenated = norm_text(" ".join([str(x or "") for x in [in_addr1,in_addr2,in_addr3,in_city,in_state,in_country,in_pin]]))
 
-        # 1) Extract/confirm pins, then score against city/state/country
-        candidate_pins = set(extract_all_pins(addr_text, pin_in))
+        in_state_expanded = expand_state_from_abbrev(in_state, states)
+        in_city_base = base_city(in_city)
+
+        candidate_pins = set(extract_all_pins(concatenated, in_pin))
         pin_candidates = []
         for p in candidate_pins:
             if p in pin_map:
-                src_rows = pin_map[p]
-                for src, r in src_rows:
-                    sc_city = sim(title(r["city"]), city_in) if city_in else 0
-                    sc_state= sim(title(r["state"]), state_in) if state_in else 0
-                    sc_ctry = sim(title(r["country"]), country_in) if country_in else 0
-                    # Weighted score: strong pincode presence, plus field alignment checks
-                    score = 1.0*1.0 + 0.30*sc_city + 0.30*sc_state + 0.10*sc_ctry
+                for src, r in pin_map[p]:
+                    c = title(r["city"]); s = title(r["state"]); k = title(r["country"])
+                    sc_city_raw  = sim(c, in_city) if in_city else 0
+                    sc_city_base = sim(c, in_city_base) if in_city_base else 0
+                    sc_city = max(sc_city_raw, sc_city_base)
+                    sc_state = sim(s, in_state_expanded) if in_state_expanded else 0
+                    sc_ctry  = sim(k, in_country) if in_country else 0
+                    score = 1.0 + 0.35*sc_city + 0.35*sc_state + 0.10*sc_ctry
                     pin_candidates.append({
-                        "pincode": p, "city": title(r["city"]), "state": title(r["state"]), "country": title(r["country"]),
-                        "score": score, "src": src,
-                        "sc_city": sc_city, "sc_state": sc_state, "sc_country": sc_ctry
+                        "src": src, "pincode": p, "city": c, "state": s, "country": k,
+                        "sc_city_raw": sc_city_raw, "sc_city_base": sc_city_base, "sc_city": sc_city,
+                        "sc_state": sc_state, "sc_country": sc_ctry, "score": score
                     })
-                    audit_rows.append({"input_id": input_id, "match_type":"pincode", "candidate": f"{p}|{r['city']}|{r['state']}", "score": score, "source": src})
+                    audits.append({"input_id": input_id, "match_type":"pincode", "candidate": f"{p}|{c}|{s}|{k}", "score": score, "source": src})
 
-        # 2) If no strong pin path, try city/state → pin fallback across postal+rta
         city_to_pin_candidates = []
         if not pin_candidates:
             for src, df in [("postal", postal), ("rta", rta)]:
                 df_tmp = df.copy()
-                df_tmp["cscore"] = df_tmp["city_t"].apply(lambda c: sim(c, city_in) if city_in else 0)
-                df_tmp["sscore"]= df_tmp["state_t"].apply(lambda s: sim(s, state_in) if state_in else 0)
-                df_tmp["kscore"]= df_tmp["country_t"].apply(lambda k: sim(k, country_in) if country_in else 0)
-                # Keep candidates where (city>=0.80) or (state>=0.80) or (city>=0.70 and state>=0.70)
-                filt = (df_tmp["cscore"]>=THR) | (df_tmp["sscore"]>=THR) | ((df_tmp["cscore"]>=0.70)&(df_tmp["sscore"]>=0.70))
+                df_tmp["city_score_raw"]  = df_tmp["city_t"].apply(lambda c: sim(c, in_city) if in_city else 0)
+                df_tmp["city_score_base"] = df_tmp["city_t"].apply(lambda c: sim(c, in_city_base) if in_city_base else 0)
+                df_tmp["city_score"] = df_tmp[["city_score_raw","city_score_base"]].max(axis=1)
+                df_tmp["state_score"]= df_tmp["state_t"].apply(lambda s: sim(s, in_state_expanded) if in_state_expanded else 0)
+                df_tmp["country_score"]= df_tmp["country_t"].apply(lambda k: sim(k, in_country) if in_country else 0)
+
+                filt = (df_tmp["city_score"]>=THR) | (df_tmp["state_score"]>=THR) | ((df_tmp["city_score"]>=0.70)&(df_tmp["state_score"]>=0.70))
                 for _, r in df_tmp[filt].iterrows():
-                    score = 0.45*r["cscore"] + 0.45*r["sscore"] + 0.10*r["kscore"]
+                    score = 0.45*r["city_score"] + 0.45*r["state_score"] + 0.10*r["country_score"]
                     city_to_pin_candidates.append({
-                        "pincode": r["pincode"], "city": r["city_t"], "state": r["state_t"], "country": r["country_t"],
-                        "score": score, "src": src, "sc_city": r["cscore"], "sc_state": r["sscore"], "sc_country": r["kscore"]
+                        "src": src, "pincode": r["pincode"], "city": r["city_t"], "state": r["state_t"], "country": r["country_t"],
+                        "sc_city_raw": r["city_score_raw"], "sc_city_base": r["city_score_base"], "sc_city": r["city_score"],
+                        "sc_state": r["state_score"], "sc_country": r["country_score"], "score": score
                     })
             for c in city_to_pin_candidates:
-                audit_rows.append({"input_id": input_id, "match_type":"city→pin", "candidate": f"{c['pincode']}|{c['city']}|{c['state']}", "score": c["score"], "source": c["src"]})
+                audits.append({"input_id": input_id, "match_type":"city→pin", "candidate": f"{c['pincode']}|{c['city']}|{c['state']}|{c['country']}", "score": c["score"], "source": c["src"]})
 
-        # 3) World cities/countries reconciliation (no pincode path)
         world_candidates = []
-        if city_in:
-            wc = world[world["city_t"]==city_in]
+        if in_city_base:
+            wc = world[world["city_t"]==in_city_base]
             for _, r in wc.iterrows():
-                sc_city = sim(city_in, r["city_t"])
-                sc_ctry = sim(country_in, r["country_t"]) if country_in else 0
-                score = 0.7*sc_city + 0.3*sc_ctry
+                sc_city = sim(in_city_base, r["city_t"])
+                sc_ctry = sim(in_country, r["country_t"]) if in_country else 0
+                score = 0.75*sc_city + 0.25*sc_ctry
                 world_candidates.append({"city": r["city_t"], "country": r["country_t"], "score": score})
-                audit_rows.append({"input_id": input_id, "match_type":"world_city", "candidate": f"{r['city_t']}|{r['country_t']}", "score": score, "source": "world_cities"})
+                audits.append({"input_id": input_id, "match_type":"world_city", "candidate": f"{r['city_t']}|{r['country_t']}", "score": score, "source": "world_cities"})
 
-        # 4) Final choice: prefer pincode-based; else city→pin; else world; else fallback to input
-        chosen = None
-        candidate_pool = pin_candidates or city_to_pin_candidates
-        if candidate_pool:
-            top = max(candidate_pool, key=lambda x: x["score"])
-            chosen = {
-                "pincode": top["pincode"],
-                "city": top["city"],
-                "state": top["state"],
-                "country": top["country"],
-                "source": "pincode" if pin_candidates else "city→pin"
-            }
+        if pin_candidates:
+            top = choose_best(pin_candidates, key=lambda x: x["score"])
+            chosen = top.copy(); chosen_src = "pincode"
+        elif city_to_pin_candidates:
+            top = choose_best(city_to_pin_candidates, key=lambda x: x["score"])
+            chosen = top.copy(); chosen_src = "city→pin"
         elif world_candidates:
-            top = max(world_candidates, key=lambda x: x["score"])
-            chosen = {"pincode": None, "city": top["city"], "state": state_in or None, "country": top["country"], "source":"world_cities"}
+            top = choose_best(world_candidates, key=lambda x: x["score"])
+            chosen = {"pincode": None, "city": top["city"], "state": in_state_expanded or None, "country": top["country"],
+                      "sc_city_raw": None, "sc_city_base": None, "sc_city": None, "sc_state": None, "sc_country": None,
+                      "score": top["score"]}
+            chosen_src = "world_cities"
         else:
-            chosen = {"pincode": pin_in or None, "city": city_in or None, "state": state_in or None, "country": country_in or None, "source":"fallback"}
+            chosen = {"pincode": in_pin or None, "city": in_city_base or in_city or None, "state": in_state_expanded or None, "country": in_country or None,
+                      "sc_city_raw": None, "sc_city_base": None, "sc_city": None, "sc_state": None, "sc_country": None,
+                      "score": 0.0}
+            chosen_src = "fallback"
 
-        # 5) Flags
-        flag_t30 = 1 if (chosen["city"] and title(chosen["city"]) in set(t30)) else 0
-        flag_foreign = 1 if (chosen["country"] and title(chosen["country"]) != "India") else 0
-        flag_pin_found = 1 if chosen["pincode"] else 0
+        t30_set = set(t30)
+        flag_t30 = 1 if (chosen.get("city") and base_city(chosen["city"]) in t30_set) else 0
+        flag_foreign = 1 if (chosen.get("country") and title(chosen["country"]) != "India") else 0
+        flag_pin_present = 1 if chosen.get("pincode") else 0
 
-        # 6) Collect audit candidates (top 5 for each dimension)
-        all_pins = [c["pincode"] for c in sorted(pin_candidates or city_to_pin_candidates, key=lambda x: x["score"], reverse=True)[:5]]
-        all_cities = list({c["city"] for c in sorted((pin_candidates or []) + world_candidates, key=lambda x: x["score"], reverse=True)[:5]})
-        all_states = list({c["state"] for c in sorted(pin_candidates or city_to_pin_candidates, key=lambda x: x["score"], reverse=True)[:5] if c.get("state")})
-        all_countries = list({(c.get("country") or country_in) for c in sorted((pin_candidates or []) + world_candidates, key=lambda x: x["score"], reverse=True)[:5] if (c.get("country") or country_in)})
-
-        results.append({
+        rows.append({
             "input_id": input_id,
-            "chosen_pincode": chosen["pincode"],
-            "chosen_city": chosen["city"],
-            "chosen_state": chosen["state"],
-            "chosen_country": chosen["country"],
-            "score_pincode_input_city": None,
-            "score_pincode_city_db": None,
-            "score_pincode_input_state": None,
-            "score_pincode_state_db": None,
-            "score_pincode_input_country": None,
-            "score_pincode_country_db": None,
+            "input_address1": in_addr1, "input_address2": in_addr2, "input_address3": in_addr3,
+            "input_city": in_city, "input_city_base": in_city_base,
+            "input_state_raw": in_state, "input_state": in_state_expanded,
+            "input_country": in_country, "input_pincode": in_pin,
+            "concatenated_address": concatenated,
+
+            "output_pincode": chosen.get("pincode"),
+            "output_city": chosen.get("city"),
+            "output_state": chosen.get("state"),
+            "output_country": chosen.get("country"),
+            "source_used": chosen_src,
+            "total_score": chosen.get("score"),
+
+            "score_city_raw": chosen.get("sc_city_raw"),
+            "score_city_base": chosen.get("sc_city_base"),
+            "score_city_final": chosen.get("sc_city"),
+            "score_state": chosen.get("sc_state"),
+            "score_country": chosen.get("sc_country"),
+
             "flag_t30_possible": flag_t30,
             "flag_foreign_country_possible": flag_foreign,
-            "flag_pincode_found": flag_pin_found,
-            "source_used": chosen["source"],
-            "all_pincodes": json.dumps(all_pins, ensure_ascii=False),
-            "all_cities": json.dumps(all_cities, ensure_ascii=False),
-            "all_states": json.dumps(all_states, ensure_ascii=False),
-            "all_countries": json.dumps(all_countries, ensure_ascii=False),
+            "flag_pincode_found": flag_pin_present
         })
 
-    out_df = pd.DataFrame(results)
-    audit_df = pd.DataFrame(audit_rows) if audit_rows else pd.DataFrame(columns=["input_id","match_type","candidate","score","source"])
+    result_df = pd.DataFrame(rows)
+    audit_df = pd.DataFrame(audits) if audits else pd.DataFrame(columns=["input_id","match_type","candidate","score","source"])
 
-    outputs_dir = os.path.join(os.getcwd(), "outputs")
-    os.makedirs(outputs_dir, exist_ok=True)
-    excel_path = os.path.join(outputs_dir, "validation_results.xlsx")
-    if to_excel:
-        with pd.ExcelWriter(excel_path) as xl:
-            out_df.to_excel(xl, index=False, sheet_name="results")
-            audit_df.to_excel(xl, index=False, sheet_name="audit")
+    out_dir = os.path.join(os.getcwd(), "outputs")
+    os.makedirs(out_dir, exist_ok=True)
+    if excel_path is None:
+        excel_path = os.path.join(out_dir, "validation_results.xlsx")
+    with pd.ExcelWriter(excel_path) as xl:
+        result_df.to_excel(xl, index=False, sheet_name="results")
+        audit_df.to_excel(xl, index=False, sheet_name="audit")
 
     eng = get_engine()
     with eng.begin() as con:
-        out_df.to_sql("validation_result", con, schema="output", if_exists="append", index=False, method="multi")
+        minimal = result_df.rename(columns={
+            "output_pincode":"chosen_pincode",
+            "output_city":"chosen_city",
+            "output_state":"chosen_state",
+            "output_country":"chosen_country",
+            "score_city_final":"score_pincode_input_city",
+            "score_state":"score_pincode_input_state",
+            "score_country":"score_pincode_input_country"
+        })[
+            ["input_id","chosen_pincode","chosen_city","chosen_state","chosen_country",
+             "score_pincode_input_city","score_pincode_input_state","score_pincode_input_country",
+             "flag_t30_possible","flag_foreign_country_possible","flag_pincode_found","source_used"]
+        ]
+        minimal.to_sql("validation_result", con, schema="output", if_exists="append", index=False, method="multi")
+        result_df.to_sql("validation_result_full", con, schema="output", if_exists="append", index=False, method="multi")
         audit_df.to_sql("audit_matches", con, schema="output", if_exists="append", index=False, method="multi")
 
-    print(f"Wrote {len(out_df)} rows to output.validation_result; Excel at: {excel_path}")
+    print(f"Validation complete: {len(result_df)} rows. Excel -> {excel_path}")
 
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=1000, help="Process this many rows first (default 1000).")
+    ap.add_argument("--excel", type=str, default=None, help="Path to Excel output file.")
     args = ap.parse_args()
-    main(limit=args.limit)
+    main(limit=args.limit, excel_path=args.excel)
