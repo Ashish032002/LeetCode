@@ -1,18 +1,18 @@
 # validate_addresses_phase2.py
-# Phase-2 validator: exhaustive matching with 1-gram/2-gram n-gram search over
-# concatenated address; strict pincode-first; robust state short-form expansion;
-# flags (T30/foreign/pincode); ONLY the 6 pincode binary scores; audit trail;
-# local address remainder; strips directional/division terms from OUTPUT city.
-#
-# Requires: db_config.get_engine()
-
 import os, re, json
 import pandas as pd
 from sqlalchemy import text
 from db_config import get_engine
 
-# ---------- Similarity ----------
 THRESH = 0.80
+PIN_RE = re.compile(r'(?<!\d)(\d{6})(?!\d)')  # India PIN
+DIR_TOKENS = {
+    "north","south","east","west","n","s","e","w",
+    "north-east","north-west","south-east","south-west","ne","nw","se","sw"
+}
+CITY_NOISE = {"sector","zone","block","phase","ward","dist","district","taluka","taluk","mandal","city","moffusil","gpo"}
+
+# ---------- similarity ----------
 try:
     from rapidfuzz import fuzz
     def sim(a,b): return fuzz.token_set_ratio(str(a or ""), str(b or ""))/100.0
@@ -21,24 +21,8 @@ except Exception:
     def sim(a,b):
         return difflib.SequenceMatcher(None, str(a or "").lower(), str(b or "").lower()).ratio()
 
-# ---------- Basic helpers ----------
-PIN_RE = re.compile(r'(?<!\d)(\d{6})(?!\d)')
-
-CITY_STOPWORDS = {
-    # generic directions & layout words
-    "west","east","north","south","n","s","e","w","nw","ne","sw","se",
-    "southwest","southeast","northwest","northeast",
-    "sector","zone","block","phase","ward","dist","district","taluka","taluk","mandal",
-    # India-specific noisy suffixes
-    "city","moffusil","division","gpo","mumbai","pune"  # “city/moffusil/division” removed from output
-}
-
-# when cleaning FINAL output_city we also remove compound direction phrases
-CITY_PHRASE_STOP = [
-    " city", " north", " south", " east", " west",
-    " north east", " north west", " south east", " south west",
-    " moffusil", " division"
-]
+def Title(s): return str(s or "").strip().title()
+def Upper(s): return str(s or "").strip().upper()
 
 def norm_text(s):
     s = str(s or "")
@@ -46,85 +30,47 @@ def norm_text(s):
     s = re.sub(r"\s+", " ", s)
     return s.strip()
 
-def Title(s): return str(s or "").strip().title()
-def Upper(s): return str(s or "").strip().upper()
+def _alpha_tokens(s):
+    return [t for t in re.split(r"[^A-Za-z]+", str(s or "")) if t]
 
-def extract_pincodes(*fields):
-    pins=set()
-    for f in fields:
-        if not f: continue
-        for m in PIN_RE.findall(str(f)):
-            pins.add(m)
-    return sorted(pins)
-
-def _tokens_alpha(s: str):
-    return [t for t in re.split(r"[^A-Za-z]+", str(s or "")) if len(t) > 0]
-
-def make_ngrams_for_match(concat_text: str):
-    toks = _tokens_alpha(concat_text)
-    grams = set()
-    # unigrams (≥2 chars)
+def _ngrams_12(s):
+    toks = _alpha_tokens(s)
+    grams=set()
     for t in toks:
         if len(t) >= 2:
             grams.add(Title(t))
-    # bigrams
     for i in range(len(toks)-1):
-        a, b = toks[i], toks[i+1]
-        if len(a) >= 2 and len(b) >= 2:
+        a,b=toks[i], toks[i+1]
+        if len(a)>=2 and len(b)>=2:
             grams.add(Title(f"{a} {b}"))
     return grams
 
-def best_sim_from_concat(candidate_value: str, concat_text: str, extra: list = None):
-    grams = make_ngrams_for_match(concat_text)
-    if extra:
-        grams.update([Title(x) for x in extra if x])
-    if not grams:
-        return 0.0
-    return max(sim(candidate_value, g) for g in grams)
-
-def base_city(city: str)->str:
-    """Remove directional & structure stopwords for matching; title-case result."""
+def base_city(city):
     if not city: return None
-    tokens = [t for t in re.split(r"[^A-Za-z]+", str(city)) if t]
-    keep = [t for t in tokens if t.lower() not in CITY_STOPWORDS]
-    return Title(" ".join(keep)) if keep else Title(city)
+    toks=[t for t in _alpha_tokens(city) if t.lower() not in DIR_TOKENS|CITY_NOISE]
+    return Title(" ".join(toks)) if toks else Title(city)
 
-def clean_city_output(city: str)->str:
-    """Aggressive cleaner for FINAL output city: drop 'City/Moffusil/Division'
-       and any directional phrases like 'South East', 'North West'."""
+def strip_city_directions(city):
     if not city: return city
-    s = " " + Title(city) + " "
-    s = s.lower()
-    # remove compound phrases first
-    for ph in CITY_PHRASE_STOP:
-        s = s.replace(ph, " ")
-    # strip leftover single tokens
-    tokens = [t for t in re.split(r"[^a-z]+", s) if t]
-    tokens = [t for t in tokens if t and t not in CITY_STOPWORDS]
-    cleaned = Title(" ".join(tokens))
-    return cleaned
+    toks=[t for t in _alpha_tokens(city) if t.lower() not in DIR_TOKENS|CITY_NOISE]
+    return Title(" ".join(toks)) if toks else Title(city)
 
-def remove_terms(text: str, terms: list)->str:
-    if not text: return text
-    s = " " + text + " "
-    for t in terms:
-        if not t: continue
-        t = re.escape(str(t).strip())
-        s = re.sub(rf"(?i)\b{t}\b", " ", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+def extract_pins(*fields):
+    pins=set()
+    for f in fields:
+        if not f: continue
+        pins.update(PIN_RE.findall(str(f)))
+    return sorted(pins)
 
-# ---------- State short-forms (DB + static fallback) ----------
+# ---------- state abbrev expansion ----------
 def _norm_token(x: str) -> str:
     x = str(x or "").strip()
     x = re.sub(r"[^A-Za-z]", "", x)
     return x.upper()
 
-def _initials_of(state_name: str) -> str:
-    toks = re.split(r"[^A-Za-z]+", str(state_name or ""))
-    toks = [t for t in toks if t]
-    if not toks: return ""
-    return "".join(t[0] for t in toks).upper()
+def _initials_of(name: str) -> str:
+    toks = _alpha_tokens(name)
+    return "".join(t[0] for t in toks).upper() if toks else ""
 
 STATE_ALIAS_STATIC = {
     "Andhra Pradesh": {"AP","AD","ANDHRAPRADESH"},
@@ -171,14 +117,11 @@ def expand_state_abbrev(state_in, states_df):
     tok = _norm_token(s_norm)
 
     states_df = states_df.copy()
-    if "state" not in states_df.columns:
-        states_df["state"] = []
     states_df["state"] = states_df["state"].astype(str).map(Title)
-    if "abbreviation" not in states_df.columns:
-        states_df["abbreviation"] = ""
+    if "abbreviation" not in states_df.columns: states_df["abbreviation"] = ""
     states_df["abbreviation"] = states_df["abbreviation"].astype(str).fillna("")
 
-    alias = {}
+    alias={}
     for _, row in states_df.iterrows():
         canon = Title(row["state"])
         alias.setdefault(canon, set())
@@ -189,207 +132,185 @@ def expand_state_abbrev(state_in, states_df):
         if canon in STATE_ALIAS_STATIC:
             alias[canon].update({_norm_token(x) for x in STATE_ALIAS_STATIC[canon]})
 
-    # direct alias hit
     for canon, toks in alias.items():
-        if tok in toks:
-            return canon
-    if s_title in alias:
-        return s_title
+        if tok in toks: return canon
+    if s_title in alias: return s_title
 
-    # fuzzy to canonical
     try:
         from rapidfuzz import fuzz
         best_c, best_s = None, -1.0
         for canon in alias.keys():
             sc = fuzz.token_set_ratio(canon, s_title)/100.0
-            if sc > best_s:
-                best_c, best_s = canon, sc
-        if best_s >= THRESH:
-            return best_c
+            if sc > best_s: best_c, best_s = canon, sc
+        if best_s >= THRESH: return best_c
     except Exception:
         import difflib
         cands = list(alias.keys())
         best = difflib.get_close_matches(s_title, cands, n=1, cutoff=THRESH)
-        if best:
-            return best[0]
+        if best: return best[0]
     return s_title
 
-def bin1(x): 
-    try: return 1 if (x is not None and float(x) >= THRESH) else 0
-    except: return 0
+# ---------- discovery limited to input/concat ----------
+def discover_cities(concat, in_city, master_cities):
+    grams = _ngrams_12(concat)
+    if in_city: grams.add(Title(in_city)); grams.add(base_city(in_city))
+    discovered=set()
+    for cand in grams:
+        for mc in master_cities:
+            if sim(cand, mc) >= THRESH:
+                discovered.add(Title(mc))
+    return discovered
 
-# ---------- Main ----------
 def main(limit=1000, excel=None):
     eng = get_engine()
     with eng.begin() as con:
         postal = pd.read_sql("SELECT city,state,pincode,country FROM ref.postal_pincode", con)
         rta    = pd.read_sql("SELECT city,state,pincode,country FROM ref.rta_pincode", con)
-        # optional state abbrev table
+        world  = pd.read_sql("SELECT city,country FROM ref.world_cities", con)
+        t30_df = pd.read_sql("SELECT city FROM ref.t30_cities", con)
+        inputs = pd.read_sql(f"SELECT * FROM input.addresses ORDER BY id LIMIT {int(limit)}", con)
         try:
             states = pd.read_sql("SELECT state,abbreviation FROM ref.indian_state_abbrev", con)
         except Exception:
             states = pd.DataFrame({"state":[],"abbreviation":[]})
-        world  = pd.read_sql("SELECT city,country FROM ref.world_cities", con)
-        t30    = pd.read_sql("SELECT city FROM ref.t30_cities", con)["city"].astype(str).str.title().unique().tolist()
-        inputs = pd.read_sql(f"SELECT * FROM input.addresses ORDER BY id LIMIT {int(limit)}", con)
 
+    # normalize refs
     for df, cols in [(postal,["city","state","country"]), (rta,["city","state","country"]), (world,["city","country"])]:
         for c in cols: df[c] = df[c].astype(str).map(Title)
-    states["state"] = states.get("state", pd.Series([], dtype=str)).astype(str).map(Title)
-    if "abbreviation" in states.columns:
-        states["abbreviation"] = states["abbreviation"].astype(str).map(Upper)
-    else:
-        states["abbreviation"] = ""
+    master_cities = sorted(set(postal["city"]).union(set(rta["city"])).union(set(world["city"])))
+    t30_set = {Title(x) for x in t30_df["city"].astype(str).map(Title).unique().tolist()}
 
-    # pin index
-    pin_index = {}
+    # reverse index: city -> rows
+    city_index={}
     for src, df in [("postal", postal), ("rta", rta)]:
-        for _, rr in df.iterrows():
-            pin_index.setdefault(str(rr["pincode"]), []).append((src, rr))
+        for _, row in df.iterrows():
+            city_index.setdefault(row["city"], []).append((src, row))
 
-    t30_set = {Title(x) for x in t30}
+    out_rows=[]; audit=[]
 
-    out_rows, audit = [], []
+    for _, rec in inputs.iterrows():
+        input_id = int(rec["id"])
+        addr1, addr2, addr3 = rec.get("address1"), rec.get("address2"), rec.get("address3")
+        in_city  = Title(rec.get("city"))
+        in_state_raw = Title(rec.get("state"))
+        in_country = Title(rec.get("country"))
+        in_pin   = str(rec.get("pincode") or "").strip()
 
-    for _, r in inputs.iterrows():
-        input_id = int(r["id"])
-        in_addr1 = r.get("address1"); in_addr2=r.get("address2"); in_addr3=r.get("address3")
-        in_city  = Title(r.get("city"))
-        in_state_raw = Title(r.get("state"))
+        concat = norm_text(" ".join([str(x or "") for x in [addr1,addr2,addr3,in_city,in_state_raw,in_country,in_pin]]))
         in_state = expand_state_abbrev(in_state_raw, states)
-        in_country = Title(r.get("country"))
-        in_pin   = str(r.get("pincode") or "").strip()
 
-        concat = norm_text(" ".join([str(x or "") for x in [in_addr1,in_addr2,in_addr3,in_city,in_state,in_country,in_pin]]))
-        in_city_base = base_city(in_city)
+        # discover cities only from input/concat
+        discovered_cities = discover_cities(concat, in_city, master_cities)
 
-        all_countries = set([in_country]) if in_country else set()
-        all_states = set([in_state]) if in_state else set()
-        all_cities = set([in_city_base if in_city_base else in_city]) if in_city else set()
+        # candidate pins: text + pins attached to those discovered cities
+        candidate_pins = set(extract_pins(concat, in_pin))
+        for c in discovered_cities:
+            for src, row in city_index.get(c, []):
+                candidate_pins.add(str(row["pincode"]))
 
-        candidate_pins = extract_pincodes(concat, in_pin)
-        all_pincodes_text = set(candidate_pins)
-        all_pincodes_db = set()
+        best=None; best_score=-1
+        for p in sorted(candidate_pins):
+            priority = 1 if p in extract_pins(concat) else 0
+            rows=[]
+            for c in discovered_cities:
+                rows += [it for it in city_index.get(c, []) if str(it[1]["pincode"]) == p]
+            if not rows: 
+                continue
+            for src, rr in rows:
+                c=rr["city"]; s=rr["state"]; k=rr["country"]
+                sc_city = max(sim(c, in_city), sim(c, base_city(in_city)),
+                              max((sim(c, g) for g in _ngrams_12(concat)), default=0))
+                sc_state= max(sim(s, in_state),
+                              max((sim(s, g) for g in _ngrams_12(concat)), default=0))
+                sc_ctry = max(sim(k, in_country),
+                              max((sim(k, g) for g in _ngrams_12(concat)), default=0))
+                score = priority + 0.40*sc_city + 0.40*sc_state + 0.10*sc_ctry
+                if score > best_score:
+                    best = {"pincode":p,"city":c,"state":s,"country":k,"src":src,
+                            "sc_city":sc_city,"sc_state":sc_state,"sc_ctry":sc_ctry}
+                    best_score = score
+                audit.append({"input_id":input_id,"match_type":"pin-eval",
+                              "candidate":f"{p}|{c}|{s}|{k}","score":score,"source":src})
 
-        P_input_city=P_city_db=P_input_state=P_state_db=P_input_country=P_country_db=0
+        out_pin=None; out_city=None; out_state=None; out_country=None; source_used="none"
+        P_input_city=0; P_city_db=0; P_input_state=0; P_state_db=0; P_input_country=0; P_country_db=0
 
-        out_pin=out_city=out_state=out_country=None
-        source_used="fallback"
-
-        # --- PINCODE-FIRST ---
-        if candidate_pins:
-            best = None; best_score=-1
-            for p in candidate_pins:
-                rows = pin_index.get(p) or []
-                for src, rr in rows:
-                    c=Title(rr["city"]); s=Title(rr["state"]); k=Title(rr["country"])
-                    all_countries.add(k); all_states.add(s); all_cities.add(base_city(c))
-                    all_pincodes_db.add(str(p))
-                    sc_city = max(sim(c, in_city), sim(c, in_city_base), best_sim_from_concat(c, concat, [in_city, in_city_base]))
-                    sc_state= max(sim(s, in_state), best_sim_from_concat(s, concat, [in_state]))
-                    sc_ctry = max(sim(k, in_country), best_sim_from_concat(k, concat, [in_country]))
-                    score = 1.0 + 0.35*sc_city + 0.35*sc_state + 0.10*sc_ctry
-                    if score > best_score:
-                        best = {"pincode":p,"city":c,"state":s,"country":k,"src":src,
-                                "sc_city":sc_city,"sc_state":sc_state,"sc_ctry":sc_ctry}
-                        best_score = score
-                    audit.append({"input_id":input_id,"match_type":"pincode","candidate":f"{p}|{c}|{s}|{k}","score":score,"source":src})
-            if best:
-                out_pin = best["pincode"]
-                out_city = best["city"]; out_state = best["state"]; out_country = best["country"]
-                source_used="pincode"
-                P_input_city   = bin1(best["sc_city"]);   P_city_db    = 1
-                P_input_state  = bin1(best["sc_state"]);  P_state_db   = 1
-                P_input_country= bin1(best["sc_ctry"]);   P_country_db = 1
-
-        # --- CITY→PIN fallback (tight, includes n-grams) ---
-        if out_pin is None:
-            for src, df in [("postal", postal), ("rta", rta)]:
-                df_tmp = df.copy()
-                df_tmp["cscore"] = df_tmp["city"].apply(lambda x: max(sim(x, in_city), sim(x, in_city_base), best_sim_from_concat(x, concat, [in_city, in_city_base])) if in_city or in_city_base else 0)
-                df_tmp["sscore"] = df_tmp["state"].apply(lambda x: max(sim(x, in_state), best_sim_from_concat(x, concat, [in_state])) if in_state else 0)
-                df_tmp["kscore"] = df_tmp["country"].apply(lambda x: max(sim(x, in_country), best_sim_from_concat(x, concat, [in_country])) if in_country else 0)
-                mask = ((df_tmp["cscore"]>=THRESH) & (df_tmp["sscore"]>=0.60)) | ((df_tmp["sscore"]>=THRESH) & (df_tmp["cscore"]>=0.60))
-                if in_country:
-                    mask = mask & (df_tmp["kscore"]>=0.60)
-                df_tmp = df_tmp[mask]
-                for _, rr in df_tmp.iterrows():
-                    c=Title(rr["city"]); s=Title(rr["state"]); k=Title(rr["country"])
-                    all_cities.add(base_city(c)); all_states.add(s); all_countries.add(k); all_pincodes_db.add(str(rr["pincode"]))
-                    score = 0.45*rr["cscore"] + 0.45*rr["sscore"] + 0.10*rr["kscore"]
-                    audit.append({"input_id":input_id,"match_type":"city→pin","candidate":f"{rr['pincode']}|{c}|{s}|{k}","score":score,"source":src})
-            cands = [a for a in audit if a["input_id"]==input_id and a["match_type"]=="city→pin"]
-            if cands:
-                best = max(cands, key=lambda x: x["score"])
-                parts = best["candidate"].split("|")
-                out_pin = parts[0] if len(parts)>0 else None
-                out_city= parts[1] if len(parts)>1 else None
-                out_state=parts[2] if len(parts)>2 else None
-                out_country=parts[3] if len(parts)>3 else None
-                source_used="city→pin"
-
-        # --- WORLD CITIES fallback ---
-        if out_city is None and in_city:
-            bc = base_city(in_city)
-            wc = world[world["city"]==bc]
-            if not wc.empty:
-                wc["kscore"] = wc["country"].apply(lambda k: max(sim(k, in_country) if in_country else 0,
-                                                                 best_sim_from_concat(k, concat, [in_country])))
-                idx = wc["kscore"].astype(float).idxmax()
-                out_city = bc
-                out_country = Title(wc.loc[idx,"country"])
-                if out_state is None: out_state = in_state
-                source_used="world_cities"
-                all_countries.update(wc["country"].astype(str).map(Title).tolist())
-
-        # --- T30 / Foreign flags ---
-        t30_hit = False
-        if out_city and Title(base_city(out_city)) in t30_set:
-            t30_hit = True
+        if best:
+            out_pin = best["pincode"]
+            out_city = best["city"]
+            out_state = best["state"]
+            out_country = best["country"]
+            source_used = "pincode/discovered"
+            P_input_city   = 1 if best["sc_city"]  >= THRESH else 0
+            P_city_db      = 1
+            P_input_state  = 1 if best["sc_state"] >= THRESH else 0
+            P_state_db     = 1
+            P_input_country= 1 if best["sc_ctry"]  >= THRESH else 0
+            P_country_db   = 1
         else:
-            for c in list(all_cities)+([out_city] if out_city else []):
-                if c and Title(base_city(c)) in t30_set:
-                    t30_hit = True; break
-        countries_all = set([Title(x) for x in list(all_countries)+([out_country] if out_country else []) if x])
-        foreign_flag = 1 if any(k!="India" for k in countries_all) else 0
+            # fallback: best row under discovered city list
+            candidates=[]
+            for c in discovered_cities:
+                for src, rr in city_index.get(c, []):
+                    sc_state = max(sim(rr["state"], in_state),
+                                   max((sim(rr["state"], g) for g in _ngrams_12(concat)), default=0))
+                    sc_ctry  = max(sim(rr["country"], in_country),
+                                   max((sim(rr["country"], g) for g in _ngrams_12(concat)), default=0))
+                    sc = 0.60*sc_state + 0.20*sc_ctry
+                    candidates.append((sc, src, rr))
+                    audit.append({"input_id":input_id,"match_type":"city-fallback",
+                                  "candidate":f"{rr['pincode']}|{rr['city']}|{rr['state']}|{rr['country']}",
+                                  "score":sc,"source":src})
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                sc, src, rr = candidates[0]
+                out_pin=str(rr["pincode"]); out_city=rr["city"]; out_state=rr["state"]; out_country=rr["country"]
+                source_used="city-fallback"
 
-        # lists
-        all_countries_list = sorted([x for x in countries_all])
-        all_states_list = sorted({x for x in list(all_states)+([out_state] if out_state else []) if x})
-        all_cities_list = sorted({Title(base_city(x)) for x in list(all_cities)+([out_city] if out_city else []) if x})
+        # clean directions from output city
+        if out_city:
+            out_city = strip_city_directions(out_city)
 
-        all_pincodes_text_list = sorted(all_pincodes_text)
-        all_pincodes_db_list = sorted(all_pincodes_db)[:100]
-        all_pincodes_union = sorted(set(all_pincodes_text_list) | set(all_pincodes_db_list))
+        # flags
+        t30_flag = 1 if (out_city and base_city(out_city) in t30_set) else 0
+        foreign_flag = 1 if (out_country and Title(out_country) != "India") else 0
+        pin_found_flag = 1 if out_pin else 0
+
+        # possibles (restricted)
+        all_possible_cities = sorted({strip_city_directions(c) for c in discovered_cities})
+        all_possible_pins_text = extract_pins(concat, in_pin)
+        all_possible_pins_db = sorted({str(it[1]["pincode"]) for c in discovered_cities for it in city_index.get(c, [])})
+        all_possible_pins = sorted(set(all_possible_pins_text) | set(all_possible_pins_db))
 
         # local address remainder
-        remove_list = []
-        if out_pin: remove_list.append(out_pin)
-        if out_country: remove_list.append(out_country)
-        if out_state: remove_list.append(out_state)
-        for c in list(all_cities_list)+([out_city] if out_city else []):
-            if c: remove_list.append(c)
-        local_address = remove_terms(concat, remove_list)
-
-        # FINAL: strip direction/division tokens from OUTPUT city
-        if out_city:
-            out_city = clean_city_output(out_city)
+        remove_terms=set()
+        if out_pin: remove_terms.add(out_pin)
+        if out_country: remove_terms.add(out_country)
+        if out_state: remove_terms.add(out_state)
+        for c in all_possible_cities + ([out_city] if out_city else []):
+            remove_terms.add(c)
+        s=" "+concat+" "
+        for t in remove_terms:
+            t = re.escape(str(t))
+            s = re.sub(rf"(?i)\b{t}\b", " ", s)
+        s = re.sub(r"\s+", " ", s).strip()
+        local_address = s
 
         out_rows.append({
-            # Inputs
+            # inputs
             "input_id": input_id,
-            "address1": r.get("address1"), "address2": r.get("address2"), "address3": r.get("address3"),
+            "address1": addr1, "address2": addr2, "address3": addr3,
             "input_city": in_city, "input_state_raw": in_state_raw, "input_state": in_state,
             "input_country": in_country, "input_pincode": in_pin,
             "concatenated_address": concat,
 
-            # Outputs
+            # outputs
             "output_pincode": out_pin,
             "output_city": out_city,
             "output_state": out_state,
             "output_country": out_country,
 
-            # ONLY the 6 required binary scores
+            # six binary scores
             "Pincode-input_city_match": P_input_city,
             "Pincode-city_db_match": P_city_db,
             "Pincode-input_state_match": P_input_state,
@@ -397,21 +318,19 @@ def main(limit=1000, excel=None):
             "Pincode-input_country_match": P_input_country,
             "Pincode-country_db_match": P_country_db,
 
-            # Flags
-            "t30_city_possible": 1 if t30_hit else 0,
+            # flags
+            "t30_city_possible": t30_flag,
             "foreign_country_possible": foreign_flag,
-            "pincode_found": 1 if out_pin else 0,
+            "pincode_found": pin_found_flag,
             "source_used": source_used,
 
-            # All possible (for transparency)
-            "all_possible_countries": json.dumps(all_countries_list, ensure_ascii=False),
-            "all_possible_states": json.dumps(all_states_list, ensure_ascii=False),
-            "all_possible_cities": json.dumps(all_cities_list, ensure_ascii=False),
-            "all_possible_pincodes_text": json.dumps(all_pincodes_text_list, ensure_ascii=False),
-            "all_possible_pincodes_db": json.dumps(all_pincodes_db_list, ensure_ascii=False),
-            "all_possible_pincodes": json.dumps(all_pincodes_union, ensure_ascii=False),
+            # possibles (restricted)
+            "all_possible_cities": json.dumps(all_possible_cities, ensure_ascii=False),
+            "all_possible_pincodes_text": json.dumps(all_possible_pins_text, ensure_ascii=False),
+            "all_possible_pincodes_db": json.dumps(all_possible_pins_db[:100], ensure_ascii=False),
+            "all_possible_pincodes": json.dumps(all_possible_pins, ensure_ascii=False),
 
-            # Remainder
+            # remainder
             "local_address": local_address
         })
 
@@ -426,28 +345,25 @@ def main(limit=1000, excel=None):
         result_df.to_excel(xl, index=False, sheet_name="results")
         audit_df.to_excel(xl, index=False, sheet_name="audit")
 
-    # DB persists
+    # DB
     eng = get_engine()
     with eng.begin() as con:
+        result_df.to_sql("validation_result_full", con, schema="output", if_exists="append", index=False, method="multi")
         minimal = result_df.rename(columns={
             "output_pincode":"chosen_pincode",
             "output_city":"chosen_city",
             "output_state":"chosen_state",
             "output_country":"chosen_country",
-        })[[
-            "input_id","chosen_pincode","chosen_city","chosen_state","chosen_country",
-            "t30_city_possible","foreign_country_possible","pincode_found","source_used"
-        ]]
+        })[["input_id","chosen_pincode","chosen_city","chosen_state","chosen_country",
+            "t30_city_possible","foreign_country_possible","pincode_found","source_used"]]
         minimal.to_sql("validation_result", con, schema="output", if_exists="append", index=False, method="multi")
-        result_df.to_sql("validation_result_full", con, schema="output", if_exists="append", index=False, method="multi")
-        audit_df.to_sql("audit_matches", con, schema="output", if_exists="append", index=False, method="multi")
 
-    print(f" Validation done: {len(result_df)} rows. Excel → {xls_path}")
+    print(f"✅ Validation done for {len(result_df)} rows. Excel → {xls_path}")
 
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
-    ap.add_argument("--limit", type=int, default=1000, help="Process first N rows (default 1000).")
-    ap.add_argument("--excel", type=str, default=None, help="Excel output path.")
+    ap.add_argument("--limit", type=int, default=1000)
+    ap.add_argument("--excel", type=str, default=None)
     args = ap.parse_args()
     main(limit=args.limit, excel=args.excel)
