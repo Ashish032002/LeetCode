@@ -58,3 +58,17 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+with eng.begin() as con:
+    # Empty the table but keep structure
+    con.execute(text("TRUNCATE TABLE ref.world_cities RESTART IDENTITY"))
+
+    # Insert all rows again
+    df.to_sql(
+        "world_cities",
+        con,
+        schema="ref",
+        if_exists="append",
+        index=False
+    )
+
