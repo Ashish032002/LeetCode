@@ -54,7 +54,7 @@ def main():
                   if_exists="append", 
                   index=False)
 
-    print("✔ world_cities uploaded successfully!")
+    print("world_cities uploaded successfully!")
 
 if __name__ == "__main__":
     main()
