@@ -1,35 +1,358 @@
-input: { "address1": "9/911 Malviya Nafar", "address2": "jaipur", "address3": "rajasthan", "city": "Jaipur chennai", "state": "Rajasthan tamilnadu", "pincode": "30201", "country": "India USA" }
+Input:
+{
+    "address1": "9/911 Malviya Nafar",
+    "address2": "jaipur",
+    "address3": "rajasthan",
+    "city": "Jaipur chennai",
+    "state": "Rajasthan tamilnadu",
+    "pincode": "30201",
+    "country": "India USA"
+}
 
-output: { "results": [ { "address_components": [ { "value": [ "303348" ], "type": "pincode" }, { "value": [ "Jaipur" ], "type": "city" }, { "value": [ "Rajasthan" ], "type": "state" }, { "value": [ "India" ], "type": "country" }, { "value": [ "9/911 Malviya Nafar" ], "type": "local_address" }, { "value": [ 1 ], "type": "t30_city_possible" }, { "value": [ 0 ], "type": "foreign_country_possible" }, { "value": [ 1 ], "type": "pincode_found" }, { "value": [ 0 ], "type": "ambiguous_address_flag" }, { "value": [ "India" ], "type": "all_possible_countries" }, { "value": [ "Rajasthan" ], "type": "all_possible_states" }, { "value": [ "Chennai", "Chennai Gpo", "Jaipur" ], "type": "all_possible_cities" }, { "value": [ "302001", "302002", "302003", "302004", "302005", "302006", "302007", "302008", "302009", "302010", "302011", "302012", "302013", "302014", "302015", "302016", "302017", "303001", "303002", "303003", "303004", "303005", "303006", "303007", "303008", "303009", "303010", "303012", "303102", "303103", "303104", "303105", "303106", "303107", "303108", "303109", "303110", "303112", "303114", "303118", "303119", "303120", "303121", "303122", "303123", "303124", "303301", "303302", "303303", "303304", "303305", "303306", "303313", "303315", "303323", "303325", "303326", "303327", "303328", "303329", "303338", "303339", "303348", "303501", "303502", "303503", "303504", "303505", "303506", "303507", "303508", "303509", "303510", "303511", "303601", "303602", "303603", "303604", "303607", "303701", "303702", "303704", "303706", "303712", "303801", "303802", "303803", "303804", "303805", "303806", "303807", "303901", "303903", "303904", "303905", "303906", "303908", "321608", "321609", "321612", "321613", "322240", "600001", "600002", "600003", "600004", "600005", "600006", "600007", "600008", "600009", "600010", "600011", "600012", "600013", "600014", "600015", "600016", "600017", "600018", "600019", "600020", "600021", "600022", "600023", "600024", "600025", "600026", "600027", "600028", "600029", "600030", "600031", "600032", "600033", "600034", "600035", "600036", "600037", "600038", "600039", "600040", "600041", "600042", "600043", "600044", "600045", "600046", "600047", "600048", "600049", "600050", "600051", "600052", "600053", "600054", "600055", "600056", "600057", "600058", "600059", "600060", "600061", "600062", "600063", "600064", "600065", "600066", "600067", "600068", "600069", "600070", "600071", "600072", "600073", "600074", "600075", "600076", "600077", "600078", "600079", "600081", "600082", "600083", "600084", "600085", "600086", "600087", "600088", "600089", "600090", "600091", "600092", "600093", "600094", "600095", "600096", "600097", "600098", "600099", "600101", "600102", "600104", "600105", "600106", "600107", "600108", "600110", "600111", "600112", "600113", "600116" ], "type": "all_possible_pincodes" }, { "value": [ 100.0 ], "type": "city_value_match" }, { "value": [ 100.0 ], "type": "city_consistency_with_pincode" }, { "value": [ 60.0 ], "type": "city_ambiguity_penalty" }, { "value": [ 100.0 ], "type": "state_value_match" }, { "value": [ 100.0 ], "type": "state_consistency_with_pincode" }, { "value": [ 100.0 ], "type": "state_ambiguity_penalty" }, { "value": [ 100.0 ], "type": "country_value_match" }, { "value": [ 100.0 ], "type": "country_consistency_with_pincode" }, { "value": [ 100.0 ], "type": "country_ambiguity_penalty" }, { "value": [ 98.67 ], "type": "overall_score" } ], "formatted_address": "9/911 Malviya Nafar,Jaipur,Rajasthan,India,303348" } ], "status": "OK", "reason": "ambiguous_city_candidates" }
+{
+    "results": [
+        {
+            "address_components": [
+                {
+                    "value": [
+                        "302021"
+                    ],
+                    "type": "pincode"
+                },
+                {
+                    "value": [
+                        "Jaipur"
+                    ],
+                    "type": "city"
+                },
+                {
+                    "value": [
+                        "Rajasthan"
+                    ],
+                    "type": "state"
+                },
+                {
+                    "value": [
+                        "India"
+                    ],
+                    "type": "country"
+                },
+                {
+                    "value": [
+                        "9/911 Malviya Nafar Usa"
+                    ],
+                    "type": "local_address"
+                },
+                {
+                    "value": [
+                        1
+                    ],
+                    "type": "t30_city_possible"
+                },
+                {
+                    "value": [
+                        0
+                    ],
+                    "type": "foreign_country_possible"
+                },
+                {
+                    "value": [
+                        1
+                    ],
+                    "type": "pincode_found"
+                },
+                {
+                    "value": [
+                        0
+                    ],
+                    "type": "ambiguous_address_flag"
+                },
+                {
+                    "value": [
+                        "India",
+                        "Usa"
+                    ],
+                    "type": "all_possible_countries"
+                },
+                {
+                    "value": [
+                        "Rajasthan",
+                        "Tamilnadu"
+                    ],
+                    "type": "all_possible_states"
+                },
+                {
+                    "value": [
+                        "Chennai",
+                        "Chennai Gpo",
+                        "Jaipur"
+                    ],
+                    "type": "all_possible_cities"
+                },
+                {
+                    "value": [
+                        "302001",
+                        "302002",
+                        "302003",
+                        "302004",
+                        "302005",
+                        "302006",
+                        "302007",
+                        "302008",
+                        "302009",
+                        "302010",
+                        "302011",
+                        "302012",
+                        "302013",
+                        "302014",
+                        "302015",
+                        "302016",
+                        "302017",
+                        "302018",
+                        "302019",
+                        "302020",
+                        "302021",
+                        "302022",
+                        "302026",
+                        "302027",
+                        "302028",
+                        "302029",
+                        "302031",
+                        "302033",
+                        "302034",
+                        "302037",
+                        "302038",
+                        "302039",
+                        "302041",
+                        "302042",
+                        "302044",
+                        "302046",
+                        "302047",
+                        "302048",
+                        "302049",
+                        "303004",
+                        "303008",
+                        "303009",
+                        "303010",
+                        "303102",
+                        "303103",
+                        "303106",
+                        "303110",
+                        "303112",
+                        "303114",
+                        "303118",
+                        "303301",
+                        "303302",
+                        "303305",
+                        "303306",
+                        "303313",
+                        "303323",
+                        "303326",
+                        "303338",
+                        "303339",
+                        "303348",
+                        "303503",
+                        "303604",
+                        "303607",
+                        "303712",
+                        "303802",
+                        "303803",
+                        "303804",
+                        "303805",
+                        "303807",
+                        "303903",
+                        "303906",
+                        "600001",
+                        "600002",
+                        "600003",
+                        "600004",
+                        "600005",
+                        "600006",
+                        "600007",
+                        "600008",
+                        "600009",
+                        "600010",
+                        "600011",
+                        "600012",
+                        "600013",
+                        "600014",
+                        "600015",
+                        "600016",
+                        "600017",
+                        "600018",
+                        "600019",
+                        "600020",
+                        "600021",
+                        "600022",
+                        "600023",
+                        "600024",
+                        "600025",
+                        "600026",
+                        "600027",
+                        "600028",
+                        "600029",
+                        "600030",
+                        "600031",
+                        "600032",
+                        "600033",
+                        "600034",
+                        "600035",
+                        "600036",
+                        "600037",
+                        "600038",
+                        "600039",
+                        "600040",
+                        "600041",
+                        "600042",
+                        "600043",
+                        "600044",
+                        "600045",
+                        "600046",
+                        "600047",
+                        "600048",
+                        "600049",
+                        "600050",
+                        "600051",
+                        "600052",
+                        "600053",
+                        "600054",
+                        "600055",
+                        "600056",
+                        "600057",
+                        "600058",
+                        "600059",
+                        "600060",
+                        "600061",
+                        "600062",
+                        "600063",
+                        "600064",
+                        "600065",
+                        "600066",
+                        "600067",
+                        "600068",
+                        "600069",
+                        "600070",
+                        "600071",
+                        "600072",
+                        "600073",
+                        "600074",
+                        "600075",
+                        "600076",
+                        "600077",
+                        "600078",
+                        "600079",
+                        "600081",
+                        "600082",
+                        "600083",
+                        "600084",
+                        "600085",
+                        "600086",
+                        "600087",
+                        "600088",
+                        "600089",
+                        "600090",
+                        "600091",
+                        "600092",
+                        "600093",
+                        "600094",
+                        "600095",
+                        "600096",
+                        "600097",
+                        "600098",
+                        "600099",
+                        "600101",
+                        "600102",
+                        "600104",
+                        "600105",
+                        "600106",
+                        "600107",
+                        "600108",
+                        "600110",
+                        "600111",
+                        "600112",
+                        "600113",
+                        "600116"
+                    ],
+                    "type": "all_possible_pincodes"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "city_value_match"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "city_consistency_with_pincode"
+                },
+                {
+                    "value": [
+                        60.0
+                    ],
+                    "type": "city_ambiguity_penalty"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "state_value_match"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "state_consistency_with_pincode"
+                },
+                {
+                    "value": [
+                        80.0
+                    ],
+                    "type": "state_ambiguity_penalty"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "country_value_match"
+                },
+                {
+                    "value": [
+                        100.0
+                    ],
+                    "type": "country_consistency_with_pincode"
+                },
+                {
+                    "value": [
+                        80.0
+                    ],
+                    "type": "country_ambiguity_penalty"
+                },
+                {
+                    "value": [
+                        97.33
+                    ],
+                    "type": "overall_score"
+                }
+            ],
+            "formatted_address": "9/911 Malviya Nafar Usa,Jaipur,Rajasthan,India,302021"
+        }
+    ],
+    "status": "OK",
+    "reason": "ambiguous_city_candidates"
+}
 
-excpected output: { "results": [ { "address_components": [ { "value": [ "" ], "type": "pincode" }, { "value": [ "Jaipur" ], "type": "city" }, { "value": [ "Rajasthan" ], "type": "state" }, { "value": [ "India" ], "type": "country" }, { "value": [ "9/911 Malviya Nafar" ], "type": "local_address" }, { "value": [ 1 ], "type": "t30_city_possible" }, { "value": [ 0 ], "type": "foreign_country_possible" }, { "value": [ 1 ], "type": "pincode_found" }, { "value": [ 1 ], "type": "ambiguous_address_flag" }, { "value": [ "India, USA" ], "type": "all_possible_countries" }, { "value": [ "Rajasthan , TamilNadu" ], "type": "all_possible_states" }, { "value": [ "Chennai", "Jaipur" ], "type": "all_possible_cities" }, { "value": [ "302001", "302002", "302003", "302004", "302005", "302006", "302007", "302008", "302009", "302010", "302011", "302012", "302013", "302014", "302015", "302016", "302017", "303001", "303002", "303003", "303004", "303005", "303006", "303007", "303008", "303009", "303010", "303012", "303102", "303103", "303104", "303105", "303106", "303107", "303108", "303109", "303110", "303112", "303114", "303118", "303119", "303120", "303121", "303122", "303123", "303124", "303301", "303302", "303303", "303304", "303305", "303306", "303313", "303315", "303323", "303325", "303326", "303327", "303328", "303329", "303338", "303339", "303348", "303501", "303502", "303503", "303504", "303505", "303506", "303507", "303508", "303509", "303510", "303511", "303601", "303602", "303603", "303604", "303607", "303701", "303702", "303704", "303706", "303712", "303801", "303802", "303803", "303804", "303805", "303806", "303807", "303901", "303903", "303904", "303905", "303906", "303908", "321608", "321609", "321612", "321613", "322240", "600001", "600002", "600003", "600004", "600005", "600006", "600007", "600008", "600009", "600010", "600011", "600012", "600013", "600014", "600015", "600016", "600017", "600018", "600019", "600020", "600021", "600022", "600023", "600024", "600025", "600026", "600027", "600028", "600029", "600030", "600031", "600032", "600033", "600034", "600035", "600036", "600037", "600038", "600039", "600040", "600041", "600042", "600043", "600044", "600045", "600046", "600047", "600048", "600049", "600050", "600051", "600052", "600053", "600054", "600055", "600056", "600057", "600058", "600059", "600060", "600061", "600062", "600063", "600064", "600065", "600066", "600067", "600068", "600069", "600070", "600071", "600072", "600073", "600074", "600075", "600076", "600077", "600078", "600079", "600081", "600082", "600083", "600084", "600085", "600086", "600087", "600088", "600089", "600090", "600091", "600092", "600093", "600094", "600095", "600096", "600097", "600098", "600099", "600101", "600102", "600104", "600105", "600106", "600107", "600108", "600110", "600111", "600112", "600113", "600116" ], "type": "all_possible_pincodes" }, { "value": [ 100.0 ], "type": "city_value_match" }, { "value": [ 100.0 ], "type": "city_consistency_with_pincode" }, { "value": [ 60.0 ], "type": "city_ambiguity_penalty" }, { "value": [ 100.0 ], "type": "state_value_match" }, { "value": [ 100.0 ], "type": "state_consistency_with_pincode" }, { "value": [ 100.0 ], "type": "state_ambiguity_penalty" }, { "value": [ 100.0 ], "type": "country_value_match" }, { "value": [ 100.0 ], "type": "country_consistency_with_pincode" }, { "value": [ 100.0 ], "type": "country_ambiguity_penalty" }, { "value": [ 98.67 ], "type": "overall_score" } ], "formatted_address": "9/911 Malviya Nafar,Jaipur,Rajasthan,India,303348" } ], "status": "OK", "reason": "pincode not found" }
 
-even if the states , cities and countries are verified you should have to give all possible values find in possible states and countries also like all possible cities , correct the logics
 
-database scheme:
+See the pincode is of 5 digit, and still you have given value as 1 in pincode found flag. Pincode found flag will only be one if the pincode is of 6 digit
 
--- ============================== -- Create Schemas -- ============================== CREATE SCHEMA IF NOT EXISTS ref; CREATE SCHEMA IF NOT EXISTS input; CREATE SCHEMA IF NOT EXISTS output;
 
--- ============================== -- Reference Tables -- ==============================
 
-CREATE TABLE IF NOT EXISTS ref.countries ( id BIGSERIAL PRIMARY KEY, name TEXT UNIQUE );
+And if the pincode is not correct or not 6 digit don't give any value in pincode: {}
 
-CREATE TABLE IF NOT EXISTS ref.world_cities ( id BIGSERIAL PRIMARY KEY, city TEXT, country TEXT, iso2 TEXT, iso3 TEXT );
 
-CREATE TABLE IF NOT EXISTS ref.t30_cities ( id BIGSERIAL PRIMARY KEY, city TEXT, country TEXT DEFAULT 'India' );
+Only give all_possible_pincodes 
 
-CREATE TABLE IF NOT EXISTS ref.indian_state_abbrev ( id BIGSERIAL PRIMARY KEY, state TEXT, abbreviation TEXT );
 
-CREATE TABLE IF NOT EXISTS ref.postal_pincode ( id BIGSERIAL PRIMARY KEY, city TEXT, state TEXT, pincode TEXT, country TEXT DEFAULT 'India' );
-
-CREATE TABLE IF NOT EXISTS ref.rta_pincode ( id BIGSERIAL PRIMARY KEY, city TEXT, state TEXT, pincode TEXT, country TEXT DEFAULT 'India' );
-
--- ============================== -- Input Tables -- ==============================
-
-CREATE TABLE IF NOT EXISTS input.addresses ( id BIGSERIAL PRIMARY KEY, address1 TEXT, address2 TEXT, address3 TEXT, city TEXT, state TEXT, country TEXT, pincode TEXT, raw_text TEXT );
-
--- ============================== -- Output Tables -- ==============================
-
-CREATE TABLE IF NOT EXISTS output.validation_result ( id BIGSERIAL PRIMARY KEY, input_id INTEGER, output_pincode TEXT, output_city TEXT, output_state TEXT, output_country TEXT, t30_city_possible INTEGER, foreign_country_possible INTEGER, pincode_found INTEGER, ambiguous_address_flag INTEGER, all_possible_countries TEXT, all_possible_states TEXT, all_possible_cities TEXT, all_possible_pincodes TEXT, city_value_match REAL, city_consistency_with_pincode REAL, city_ambiguity_penalty REAL, state_value_match REAL, state_consistency_with_pincode REAL, state_ambiguity_penalty REAL, country_value_match REAL, country_consistency_with_pincode REAL, country_ambiguity_penalty REAL, overall_score REAL, reason TEXT, local_address TEXT, created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP );
-
--- =========================================================== -- End of Schema Creation -- ===========================================================
+Other than this everything working fine
