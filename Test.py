@@ -5,6 +5,20 @@ import pandas as pd
 import datetime
 from .db_config import get_db_connection
 
+"""
+Address validator / normalizer.
+
+This module exposes two call paths:
+
+1) CLI batch mode (used for offline validation)
+   - main(limit, excel, batch_size)
+
+2) In-process API mode (used by FastAPI service)
+   - validate_single_address_df(df)
+
+Both paths share the same core logic implemented in _run_validation().
+"""
+
 # ---------------- Similarity helpers ----------------
 
 try:
@@ -234,33 +248,6 @@ COUNTRY_THRESH = 0.75
 FOREIGN_COUNTRY_STRICT_THRESH = 0.85
 
 
-def is_probably_india(country_cands):
-    """
-    Decide if the address is probably India based on country candidates.
-    """
-    if not country_cands:
-        return True  # default India if nothing contradicts
-    # If any clear non-India candidate with good similarity appears → not India
-    for c in country_cands:
-        if c not in INDIA_SYNONYMS and Title(c) != "India":
-            return False
-    return True
-
-
-def detect_foreign_country_from_ngrams(country_words, country_master_full):
-    """
-    Return 1 if we see a strong foreign country in the address text, else 0.
-    """
-    all_country_ngrams = generate_ngrams(country_words, max_n=4)
-    # We consider anything that is not India-synonym as foreign
-    foreign_master = {c for c in country_master_full if Title(c) != "India"}
-    for ng in all_country_ngrams:
-        for m in foreign_master:
-            if sim(ng, m) >= FOREIGN_COUNTRY_STRICT_THRESH:
-                return 1
-    return 0
-
-
 def detect_foreign_country_from_ngrams_strict(country_words, country_master_full):
     """
     Stricter version: looks for high-confidence match to foreign countries.
@@ -276,33 +263,24 @@ def detect_foreign_country_from_ngrams_strict(country_words, country_master_full
     return 0
 
 
-# ---------------- Main validator ----------------
+# ---------------- Core validation runner ----------------
 
 
-def main(limit=1000, excel=None, batch_size=200):
-    eng = get_db_connection()
+def _run_validation(
+    inputs: pd.DataFrame,
+    postal: pd.DataFrame,
+    rta: pd.DataFrame,
+    world: pd.DataFrame,
+    states_ref: pd.DataFrame,
+    t30_list,
+    batch_size: int = 200,
+):
+    """
+    Core validator. Takes an input DataFrame (with columns address1,address2,address3,
+    city,state,pincode,country, id) plus reference tables and returns:
 
-    # Load reference tables
-    with eng.begin() as con:
-        postal = pd.read_sql(
-            "SELECT city,state,pincode,country FROM ref.postal_pincode", con
-        )
-        rta = pd.read_sql(
-            "SELECT city,state,pincode,country FROM ref.rta_pincode", con
-        )
-        world = pd.read_sql(
-            "SELECT city,country FROM ref.world_cities", con
-        )
-        states_ref = pd.read_sql(
-            "SELECT state,abbreviation FROM ref.states_alias", con
-        )
-        t30 = pd.read_sql(
-            "SELECT city FROM ref.top_30_cities", con
-        )["city"].tolist()
-        inputs = pd.read_sql(
-            "SELECT * FROM input.addresses ORDER BY id LIMIT {}".format(int(limit)), con
-        )
-
+      result_df, audit_df
+    """
     # Normalise reference text
     for df, cols in [
         (postal, ["city", "state", "country"]),
@@ -316,7 +294,6 @@ def main(limit=1000, excel=None, batch_size=200):
     country_master_full = (
         set(postal["country"]).union(set(world["country"])).union({"India"})
     )
-    country_master_india_only = {"India"}
 
     city_master_india = set(postal["city"]).union(set(rta["city"]))
     city_master_world = city_master_india.union(set(world["city"]))
@@ -333,6 +310,8 @@ def main(limit=1000, excel=None, batch_size=200):
     # Build map city/state -> countries from reference for enrichment
     state_to_countries = {}
     for df in (postal, rta, world):
+        if "state" not in df.columns:
+            continue
         for _, row in df[["state", "country"]].drop_duplicates().iterrows():
             st = Title(row["state"])
             co = Title(row["country"])
@@ -349,547 +328,14 @@ def main(limit=1000, excel=None, batch_size=200):
                 continue
             city_to_countries.setdefault(ci, set()).add(co)
 
-    # FIRST (older) loop – retained but final outputs are from the second loop
     results = []
     audits = []
-    t30_set = {Title(x) for x in t30}
+    t30_set = {Title(x) for x in t30_list}
 
-    for start in range(0, len(inputs), batch_size):
-        chunk = inputs.iloc[start : start + batch_size].copy()
-
-        for _, rec in chunk.iterrows():
-            rid = int(rec["id"])
-
-            a1 = rec.get("address1")
-            a2 = rec.get("address2")
-            a3 = rec.get("address3")
-
-            in_city_raw = rec.get("city")
-            in_city = Title(in_city_raw)
-            in_state_raw = rec.get("state")
-            in_state_title = Title(in_state_raw)
-            in_state_expanded = (
-                expand_state_abbrev(in_state_title, state_alias)
-                if in_state_raw and not is_null_token(in_state_raw)
-                else None
-            )
-            in_country_raw = rec.get("country")
-            in_country = Title(in_country_raw)
-            in_pin_raw = rec.get("pincode")
-            in_pin = str(in_pin_raw or "").strip()
-            invalid_pincode_format = bool(in_pin) and not re.fullmatch(r"\d{6}", in_pin)
-
-            # 1) Whole address (concatenated)
-            whole = norm_text(
-                " ".join(
-                    [
-                        str(x or "")
-                        for x in [
-                            a1,
-                            a2,
-                            a3,
-                            in_city,
-                            in_state_expanded,
-                            in_country,
-                            in_pin,
-                        ]
-                    ]
-                )
-            )
-            words = tokens_alpha(whole)
-
-            # 2) N-grams: city/state 1–2; country 1–4
-            city_words = [w for w in words if len(w) > 1]
-            state_words = city_words[:]  # same tokens used for state
-            country_words = city_words[:]
-
-            # Detect possible foreign country strictly from country words
-            foreign_country_possible = detect_foreign_country_from_ngrams_strict(
-                country_words, country_master_full
-            )
-
-            # INDIA-FIRST LOGIC
-            # Detect country candidates from full master (always include world countries)
-            country_cands_full = find_candidates_from_ngrams(
-                country_words,
-                country_master_full,
-                max_n=4,
-                thresh=COUNTRY_THRESH,
-                extra_seed=in_country,
-            )
-
-            has_foreign_country = any(c != "India" for c in country_cands_full)
-            input_country_is_india = (
-                in_country
-                and not is_null_token(in_country)
-                and Title(in_country) == "India"
-            )
-
-            # City master selection
-            if has_foreign_country and not input_country_is_india:
-                city_master = city_master_world
-            else:
-                city_master = city_master_india
-
-            # For countries, always use the full master when finding candidates
-            country_master = country_master_full
-
-            city_cands = find_candidates_from_ngrams(
-                city_words,
-                city_master,
-                max_n=2,
-                thresh=CITY_STATE_THRESH,
-                extra_seed=in_city,
-            )
-
-            state_cands_raw = find_candidates_from_ngrams(
-                state_words,
-                set(states_ref["state"]),
-                max_n=2,
-                thresh=CITY_STATE_THRESH,
-                extra_seed=in_state_expanded,
-            )
-            state_cands = set()
-            for s in state_cands_raw:
-                expanded = expand_state_abbrev(s, state_alias)
-                if expanded and not is_null_token(expanded):
-                    state_cands.add(expanded)
-
-            # Now find country candidates using the correctly scoped master list
-            country_cands = find_candidates_from_ngrams(
-                country_words,
-                country_master,  # Uses India-only or full list based on 'probably_india'
-                max_n=4,
-                thresh=COUNTRY_THRESH,
-                extra_seed=in_country,
-            )
-
-            # 3) Pincode logic
-            input_pin_not_in_master = False
-            chosen_pin = None
-            chosen_pin_row = None
-            all_possible_pincodes_set = set()
-
-            # Extract pincodes directly from free text
-            pins_text = set(re.findall(r"\b\d{6}\b", whole))
-
-            def _pins_from_city_state():
-                """
-                Use city/state candidates to retrieve all related pincodes from DB.
-                """
-                pins = set()
-                for df_src, df in [("postal", postal), ("rta", rta)]:
-                    sub = df[
-                        df["city"].isin(city_cands)
-                        | df["state"].isin(state_cands)
-                        | df["country"].isin(country_cands)
-                    ]
-                    for _, row_pin in sub.iterrows():
-                        pins.add(str(row_pin["pincode"]))
-                        audits.append(
-                            {
-                                "input_id": rid,
-                                "type": "city→pin",
-                                "pincode": row_pin["pincode"],
-                                "city": row_pin["city"],
-                                "state": row_pin["state"],
-                                "country": row_pin["country"],
-                                "src": df_src,
-                            }
-                        )
-                return pins
-
-            input_pin_clean = (
-                in_pin if (in_pin and re.fullmatch(r"\d{6}", in_pin)) else None
-            )
-
-            if input_pin_clean:
-                # User has provided a 6-digit pincode in the input column
-                rows = pin_index.get(input_pin_clean, [])
-                if rows:
-                    # Valid pincode present in master -> choose it
-                    chosen_pin = input_pin_clean
-                    postal_rows = [r for (src, r) in rows if src == "postal"]
-                    if postal_rows:
-                        chosen_pin_row = postal_rows[0]
-                    else:
-                        chosen_pin_row = rows[0][1]
-
-                    # For a valid input pin, keep all pins seen in the address text if any,
-                    # otherwise at least the input pin itself.
-                    all_possible_pincodes_set = set(pins_text) or {input_pin_clean}
-                else:
-                    # Input pincode is syntactically valid but NOT present in master.
-                    # Do NOT predict a single pincode – only return possible pins from DB.
-                    input_pin_not_in_master = True
-                    pins_from_city = _pins_from_city_state()
-                    all_possible_pincodes_set = pins_from_city
-
-            else:
-                if pins_text:
-                    # No clean input pin but pincodes are present in free text.
-                    # Choose best matching pin using DB and keep all pins seen in text.
-                    if len(pins_text) == 1:
-                        only_pin = next(iter(pins_text))
-                        chosen_pin = only_pin
-                        rows = pin_index.get(only_pin, [])
-                        if rows:
-                            postal_rows = [r for (src, r) in rows if src == "postal"]
-                            if postal_rows:
-                                chosen_pin_row = postal_rows[0]
-                            else:
-                                chosen_pin_row = rows[0][1]
-                    else:
-                        best = None
-                        best_score = -1.0
-                        for p in pins_text:
-                            rows = pin_index.get(p, [])
-                            if not rows:
-                                if best is None:
-                                    best = (p, None, 0.0)
-                                continue
-                            for src, row_pin in rows:
-                                s_city = max(
-                                    (sim(row_pin["city"], c) for c in city_cands),
-                                    default=0.0,
-                                )
-                                s_state = max(
-                                    (sim(row_pin["state"], s) for s in state_cands),
-                                    default=0.0,
-                                )
-                                s_ctry = max(
-                                    (sim(row_pin["country"], k) for k in country_cands),
-                                    default=0.0,
-                                )
-                                score = 0.5 * s_city + 0.3 * s_state + 0.2 * s_ctry
-                                if score > best_score:
-                                    best = (p, row_pin, score)
-                                    best_score = score
-                        if best:
-                            chosen_pin, chosen_pin_row, _ = best
-
-                    all_possible_pincodes_set = set(pins_text)
-
-                else:
-                    # No pincode in text at all – derive purely from city/state via DB.
-                    pins_from_city = _pins_from_city_state()
-
-                    if invalid_pincode_format:
-                        # User provided a pincode, but its format is invalid (not 6 digits).
-                        # Do NOT auto-select a single pincode – only suggest candidates.
-                        all_possible_pincodes_set = set(pins_from_city)
-                    else:
-                        if pins_from_city:
-                            # Choose best pincode by state/country similarity
-                            best = None
-                            best_score = -1.0
-                            for p in pins_from_city:
-                                for src, row_pin in pin_index.get(p, []):
-                                    s_state = max(
-                                        (
-                                            sim(row_pin["state"], s)
-                                            for s in state_cands
-                                        ),
-                                        default=0.0,
-                                    )
-                                    s_ctry = max(
-                                        (
-                                            sim(row_pin["country"], k)
-                                            for k in country_cands
-                                        ),
-                                        default=0.0,
-                                    )
-                                    score = 0.6 * s_state + 0.4 * s_ctry
-                                    if score > best_score:
-                                        best = (p, row_pin, score)
-                                        best_score = score
-                            if best:
-                                chosen_pin, chosen_pin_row, _ = best
-
-                        all_possible_pincodes_set = set(pins_from_city)
-                        if chosen_pin:
-                            all_possible_pincodes_set.add(chosen_pin)
-
-            # 4) Choose city/state/country – PINCODE ROW HAS HIGHEST PRIORITY
-            def choose_best_entity(candidates, input_value, pin_value):
-                candidates = {Title(x) for x in candidates if not is_null_token(x)}
-
-                # If we have a value coming from pincode master, ALWAYS use it.
-                if pin_value and not is_null_token(pin_value):
-                    return Title(pin_value)
-
-                # Else: pick best candidate vs input
-                if not candidates and input_value and not is_null_token(input_value):
-                    return Title(input_value)
-
-                if candidates:
-                    best_c = None
-                    best_s = -1.0
-                    inp = (
-                        Title(input_value)
-                        if (input_value and not is_null_token(input_value))
-                        else None
-                    )
-                    for c in candidates:
-                        s = sim(c, inp) if inp else 1.0  # any candidate if no input
-                        if s > best_s:
-                            best_c, best_s = c, s
-                    return best_c
-
-                return (
-                    Title(input_value)
-                    if (input_value and not is_null_token(input_value))
-                    else None
-                )
-
-            city_from_pin = chosen_pin_row["city"] if chosen_pin_row is not None else None
-            state_from_pin = (
-                chosen_pin_row["state"] if chosen_pin_row is not None else None
-            )
-            country_from_pin = (
-                chosen_pin_row["country"] if chosen_pin_row is not None else None
-            )
-
-            chosen_city = choose_best_entity(city_cands, in_city, city_from_pin)
-            chosen_state = choose_best_entity(
-                state_cands, in_state_expanded, state_from_pin
-            )
-            chosen_country = choose_best_entity(
-                country_cands, in_country, country_from_pin
-            )
-
-            chosen_city_clean = clean_output_city(chosen_city)
-
-            # 5) Build all_possible_* (no NaN, and enrich from PIN + state/city→country)
-            all_possible_cities = sorted(
-                {
-                    Title(clean_output_city(c))
-                    for c in city_cands
-                    if not is_null_token(c)
-                }
-            )
-            if chosen_city_clean and not is_null_token(chosen_city_clean):
-                if chosen_city_clean not in all_possible_cities:
-                    all_possible_cities.append(chosen_city_clean)
-
-            # enrich from chosen pincode
-            if chosen_pin_row is not None:
-                c_title = Title(chosen_pin_row["city"])
-                if c_title not in all_possible_cities and not is_null_token(c_title):
-                    all_possible_cities.append(c_title)
-
-            all_possible_states = sorted(
-                {Title(s) for s in state_cands if not is_null_token(s)}
-            )
-            if chosen_state and not is_null_token(chosen_state):
-                cs = Title(chosen_state)
-                if cs not in all_possible_states:
-                    all_possible_states.append(cs)
-
-            all_possible_countries = sorted(
-                {Title(k) for k in country_cands if not is_null_token(k)}
-            )
-            if chosen_country and not is_null_token(chosen_country):
-                cc = Title(chosen_country)
-                if cc not in all_possible_countries:
-                    all_possible_countries.append(cc)
-
-            all_possible_pincodes = sorted(
-                {p for p in all_possible_pincodes_set if not is_null_token(p)}
-            )
-
-            # 6) local_address = whole – entities we already found
-            remove_list = set()
-            # Add all found pincodes
-            for p in all_possible_pincodes:
-                remove_list.add(p)
-
-            # Add chosen entities
-            if chosen_country and not is_null_token(chosen_country):
-                remove_list.add(chosen_country)
-            if chosen_state and not is_null_token(chosen_state):
-                remove_list.add(chosen_state)
-            if chosen_city_clean and not is_null_token(chosen_city_clean):
-                remove_list.add(chosen_city_clean)
-
-            local_address_tokens = tokens_alnum(whole)
-            filtered_tokens = []
-            for t in local_address_tokens:
-                skip = False
-                for r in remove_list:
-                    if r and sim(t, r) > 0.8:
-                        skip = True
-                        break
-                if not skip:
-                    filtered_tokens.append(t)
-
-            local_address = " ".join(filtered_tokens).strip()
-            if not local_address:
-                local_address = None
-
-            # 7) Scores
-            all_city_ngrams = generate_ngrams(city_words, max_n=2)
-            all_state_ngrams = generate_ngrams(state_words, max_n=2)
-            all_country_ngrams = generate_ngrams(country_words, max_n=4)
-
-            best_city_ng = max(
-                all_city_ngrams, key=lambda ng: sim(chosen_city_clean, ng), default=None
-            )
-            best_state_ng = max(
-                all_state_ngrams, key=lambda ng: sim(chosen_state, ng), default=None
-            )
-            best_country_ng = max(
-                all_country_ngrams, key=lambda ng: sim(chosen_country, ng), default=None
-            )
-
-            city_value = score_value_match(chosen_city_clean, in_city, best_city_ng)
-            state_value = score_value_match(
-                chosen_state, in_state_expanded, best_state_ng
-            )
-            country_value = score_value_match(
-                chosen_country, in_country, best_country_ng
-            )
-
-            city_cons = score_consistency_with_pin(chosen_city_clean, city_from_pin)
-            state_cons = score_consistency_with_pin(chosen_state, state_from_pin)
-            country_cons = score_consistency_with_pin(chosen_country, country_from_pin)
-
-            city_amb = score_ambiguity(all_possible_cities)
-            state_amb = score_ambiguity(all_possible_states)
-            country_amb = score_ambiguity(all_possible_countries)
-
-            def bundle(v, c, a):
-                # simple weighted mix for each entity
-                return 0.5 * v + 0.4 * c + 0.1 * a
-
-            overall = round(
-                (
-                    bundle(city_value, city_cons, city_amb)
-                    + bundle(state_value, state_cons, state_amb)
-                    + bundle(country_value, country_cons, country_amb)
-                )
-                / 3.0,
-                2,
-            )
-
-            # Reasons – concrete + understandable
-            reasons = []
-
-            # High-level invalid pincode: bad format OR not present in master
-            invalid_pincode = False
-            if in_pin and not re.fullmatch(r"\d{6}", in_pin):
-                invalid_pincode = True
-                reasons.append("Invalid Pincode")
-            elif input_pin_not_in_master:
-                invalid_pincode = True
-                reasons.append("Invalid Pincode")
-
-            if input_pin_not_in_master or (chosen_pin and chosen_pin_row is None):
-                reasons.append("pincode_not_found_in_master")
-
-            if chosen_pin_row is not None:
-                if sim(chosen_city_clean, city_from_pin) < CITY_STATE_THRESH:
-                    reasons.append("mismatch_city_vs_pincode")
-                if sim(chosen_state, state_from_pin) < CITY_STATE_THRESH:
-                    reasons.append("mismatch_state_vs_pincode")
-                if sim(chosen_country, country_from_pin) < COUNTRY_THRESH:
-                    reasons.append("mismatch_country_vs_pincode")
-
-            if city_amb < 80:
-                reasons.append("ambiguous_city_candidates")
-            if state_amb < 80:
-                reasons.append("ambiguous_state_candidates")
-            if country_amb < 80:
-                reasons.append("ambiguous_country_candidates")
-
-            if city_value < 80:
-                reasons.append("low_city_value_match")
-            if state_value < 80:
-                reasons.append("low_state_value_match")
-            if country_value < 80:
-                reasons.append("low_country_value_match")
-
-            ambiguous_flag = 1 if overall < 85 else 0
-
-            # Build formatted_address only if there are no issues (invalid or ambiguous)
-            has_issue = bool(reasons) or ambiguous_flag == 1
-            if has_issue:
-                formatted_address = ""
-            else:
-                parts = []
-                if local_address and not is_null_token(local_address):
-                    parts.append(str(local_address))
-                if chosen_city_clean and not is_null_token(chosen_city_clean):
-                    parts.append(str(chosen_city_clean))
-                if chosen_state and not is_null_token(chosen_state):
-                    parts.append(str(chosen_state))
-                if chosen_country and not is_null_token(chosen_country):
-                    parts.append(str(chosen_country))
-                if chosen_pin and not is_null_token(chosen_pin):
-                    parts.append(str(chosen_pin))
-                formatted_address = ",".join(parts)
-
-            # Append results (FIRST PASS – later overwritten by second block)
-            results.append(
-                {
-                    # Inputs
-                    "input_id": rid,
-                    "address1": a1,
-                    "address2": a2,
-                    "address3": a3,
-                    "input_city": in_city,
-                    "input_state_raw": in_state_title,
-                    "input_state": in_state_expanded,
-                    "input_country": in_country,
-                    "input_pincode": in_pin,
-                    "concatenated_address": whole,
-                    # Outputs
-                    "output_pincode": chosen_pin,
-                    "output_city": chosen_city_clean,
-                    "output_state": chosen_state,
-                    "output_country": chosen_country,
-                    # Flags
-                    "t30_city_possible": 1
-                    if (chosen_city_clean and Title(chosen_city_clean) in t30_set)
-                    else 0,
-                    "foreign_country_possible": foreign_country_possible,
-                    "pincode_found": 1 if all_possible_pincodes else 0,
-                    "ambiguous_address_flag": ambiguous_flag,
-                    # All possibles
-                    "all_possible_countries": json.dumps(
-                        all_possible_countries, ensure_ascii=False
-                    ),
-                    "all_possible_states": json.dumps(
-                        all_possible_states, ensure_ascii=False
-                    ),
-                    "all_possible_cities": json.dumps(
-                        all_possible_cities, ensure_ascii=False
-                    ),
-                    "all_possible_pincodes": json.dumps(
-                        all_possible_pincodes, ensure_ascii=False
-                    ),
-                    # Scores
-                    "city_value_match": city_value,
-                    "city_consistency_with_pincode": city_cons,
-                    "city_ambiguity_penalty": city_amb,
-                    "state_value_match": state_value,
-                    "state_consistency_with_pincode": state_cons,
-                    "state_ambiguity_penalty": state_amb,
-                    "country_value_match": country_value,
-                    "country_consistency_with_pincode": country_cons,
-                    "country_ambiguity_penalty": country_amb,
-                    "overall_score": overall,
-                    "reason": "; ".join(reasons) if reasons else "",
-                    "local_address": local_address,
-                    "formatted_address": formatted_address,
-                }
-            )
-
-    # SECOND (final) loop – the outputs from here are the ones used at the end
-
-    results = []
-    audits = []
-    t30_set = {Title(x) for x in t30}
+    # Ensure id column exists
+    if "id" not in inputs.columns:
+        inputs = inputs.copy()
+        inputs["id"] = range(1, len(inputs) + 1)
 
     for start in range(0, len(inputs), batch_size):
         chunk = inputs.iloc[start : start + batch_size].copy()
@@ -946,7 +392,6 @@ def main(limit=1000, excel=None, batch_size=200):
             )
 
             # --- INDIA-FIRST LOGIC ---
-            # Detect country candidates from full master (always include world countries)
             country_cands_full = find_candidates_from_ngrams(
                 country_words,
                 country_master_full,
@@ -963,14 +408,11 @@ def main(limit=1000, excel=None, batch_size=200):
             )
 
             # City master selection:
-            # Only allow world_cities when there is a clear foreign country
-            # and the input country is not explicitly India.
             if has_foreign_country and not input_country_is_india:
                 city_master = city_master_world
             else:
                 city_master = city_master_india
 
-            # For countries, always use the full master when finding candidates
             country_master = country_master_full
 
             city_cands = find_candidates_from_ngrams(
@@ -994,16 +436,15 @@ def main(limit=1000, excel=None, batch_size=200):
                 if expanded and not is_null_token(expanded):
                     state_cands.add(expanded)
 
-            # Now find country candidates using the correctly scoped master list
             country_cands = find_candidates_from_ngrams(
                 country_words,
-                country_master,  # Uses India-only or full list based on 'probably_india'
+                country_master,
                 max_n=4,
                 thresh=COUNTRY_THRESH,
                 extra_seed=in_country,
             )
 
-            # 3) Pincode logic (IMPROVED)
+            # 3) Pincode logic
             input_pin_not_in_master = False
             chosen_pin = None
             chosen_pin_row = None
@@ -1017,11 +458,11 @@ def main(limit=1000, excel=None, batch_size=200):
                 Use city/state candidates to retrieve all related pincodes from DB.
                 """
                 pins = set()
-                for df_src, df in [("postal", postal), ("rta", rta)]:
-                    sub = df[
-                        df["city"].isin(city_cands)
-                        | df["state"].isin(state_cands)
-                        | df["country"].isin(country_cands)
+                for df_src, dfp in [("postal", postal), ("rta", rta)]:
+                    sub = dfp[
+                        dfp["city"].isin(city_cands)
+                        | dfp["state"].isin(state_cands)
+                        | dfp["country"].isin(country_cands)
                     ]
                     for _, row_pin in sub.iterrows():
                         pins.add(str(row_pin["pincode"]))
@@ -1043,31 +484,22 @@ def main(limit=1000, excel=None, batch_size=200):
             )
 
             if input_pin_clean:
-                # User has provided a 6-digit pincode in the input column
                 rows = pin_index.get(input_pin_clean, [])
                 if rows:
-                    # Valid pincode present in master -> choose it
                     chosen_pin = input_pin_clean
                     postal_rows = [r for (src, r) in rows if src == "postal"]
                     if postal_rows:
                         chosen_pin_row = postal_rows[0]
                     else:
                         chosen_pin_row = rows[0][1]
-
-                    # For a valid input pin, keep all pins seen in the address text if any,
-                    # otherwise at least the input pin itself.
                     all_possible_pincodes_set = set(pins_text) or {input_pin_clean}
                 else:
-                    # Input pincode is syntactically valid but NOT present in master.
-                    # Do NOT predict a single pincode – only return possible pins from DB.
                     input_pin_not_in_master = True
                     pins_from_city = _pins_from_city_state()
                     all_possible_pincodes_set = pins_from_city
 
             else:
                 if pins_text:
-                    # No clean input pin but pincodes are present in free text.
-                    # Choose best matching pin using DB and keep all pins seen in text.
                     if len(pins_text) == 1:
                         only_pin = next(iter(pins_text))
                         chosen_pin = only_pin
@@ -1110,7 +542,6 @@ def main(limit=1000, excel=None, batch_size=200):
                     all_possible_pincodes_set = set(pins_text)
 
                 else:
-                    # No pincode in text at all – derive purely from city/state via DB.
                     pins_from_city = _pins_from_city_state()
 
                     if invalid_pincode_format:
@@ -1119,7 +550,6 @@ def main(limit=1000, excel=None, batch_size=200):
                         all_possible_pincodes_set = set(pins_from_city)
                     else:
                         if pins_from_city:
-                            # Choose best pincode by state/country similarity
                             best = None
                             best_score = -1.0
                             for p in pins_from_city:
@@ -1149,15 +579,13 @@ def main(limit=1000, excel=None, batch_size=200):
                         if chosen_pin:
                             all_possible_pincodes_set.add(chosen_pin)
 
-            # 4) Choose city/state/country – PINCODE ROW HAS HIGHEST PRIORITY
+            # 4) Choose city/state/country
             def choose_best_entity(candidates, input_value, pin_value):
                 candidates = {Title(x) for x in candidates if not is_null_token(x)}
 
-                # If we have a value coming from pincode master, ALWAYS use it.
                 if pin_value and not is_null_token(pin_value):
                     return Title(pin_value)
 
-                # Else: pick best candidate vs input
                 if not candidates and input_value and not is_null_token(input_value):
                     return Title(input_value)
 
@@ -1170,7 +598,7 @@ def main(limit=1000, excel=None, batch_size=200):
                         else None
                     )
                     for c in candidates:
-                        s = sim(c, inp) if inp else 1.0  # any candidate if no input
+                        s = sim(c, inp) if inp else 1.0
                         if s > best_s:
                             best_c, best_s = c, s
                     return best_c
@@ -1211,7 +639,7 @@ def main(limit=1000, excel=None, batch_size=200):
                 if chosen_city_clean not in all_possible_cities:
                     all_possible_cities.append(chosen_city_clean)
 
-            # --- enrich all_possible_cities using chosen pincode (postal + rta) ---
+            # enrich from chosen pincode (postal + rta)
             if chosen_pin:
                 try:
                     pin_int = int(chosen_pin)
@@ -1269,11 +697,9 @@ def main(limit=1000, excel=None, batch_size=200):
 
             # 6) local_address = whole – entities we already found
             remove_list = set()
-            # Add all found pincodes
             for p in all_possible_pincodes:
                 remove_list.add(p)
 
-            # Add chosen entities
             if chosen_country and not is_null_token(chosen_country):
                 remove_list.add(chosen_country)
             if chosen_state and not is_null_token(chosen_state):
@@ -1328,7 +754,6 @@ def main(limit=1000, excel=None, batch_size=200):
             country_amb = score_ambiguity(all_possible_countries)
 
             def bundle(v, c, a):
-                # simple weighted mix for each entity
                 return 0.5 * v + 0.4 * c + 0.1 * a
 
             overall = round(
@@ -1341,10 +766,9 @@ def main(limit=1000, excel=None, batch_size=200):
                 2,
             )
 
-            # Reasons – concrete + understandable
+            # Reasons
             reasons = []
 
-            # High-level invalid pincode: bad format OR not present in master
             invalid_pincode = False
             if in_pin and not re.fullmatch(r"\d{6}", in_pin):
                 invalid_pincode = True
@@ -1380,7 +804,7 @@ def main(limit=1000, excel=None, batch_size=200):
 
             ambiguous_flag = 1 if overall < 85 else 0
 
-            # Build formatted_address only if there are no issues (invalid or ambiguous)
+            # formatted_address only if no issues
             has_issue = bool(reasons) or ambiguous_flag == 1
             if has_issue:
                 formatted_address = ""
@@ -1398,10 +822,8 @@ def main(limit=1000, excel=None, batch_size=200):
                     parts.append(str(chosen_pin))
                 formatted_address = ",".join(parts)
 
-            # Append final results
             results.append(
                 {
-                    # Inputs
                     "input_id": rid,
                     "address1": a1,
                     "address2": a2,
@@ -1412,19 +834,17 @@ def main(limit=1000, excel=None, batch_size=200):
                     "input_country": in_country,
                     "input_pincode": in_pin,
                     "concatenated_address": whole,
-                    # Outputs
                     "output_pincode": chosen_pin,
                     "output_city": chosen_city_clean,
                     "output_state": chosen_state,
                     "output_country": chosen_country,
-                    # Flags
                     "t30_city_possible": 1
                     if (chosen_city_clean and Title(chosen_city_clean) in t30_set)
                     else 0,
                     "foreign_country_possible": foreign_country_possible,
+                    # IMPORTANT: pincode_found is 1 if we have ANY candidate pincode
                     "pincode_found": 1 if all_possible_pincodes else 0,
                     "ambiguous_address_flag": ambiguous_flag,
-                    # All possibles
                     "all_possible_countries": json.dumps(
                         all_possible_countries, ensure_ascii=False
                     ),
@@ -1437,7 +857,6 @@ def main(limit=1000, excel=None, batch_size=200):
                     "all_possible_pincodes": json.dumps(
                         all_possible_pincodes, ensure_ascii=False
                     ),
-                    # Scores (points, not 0/1) – 3 rules per entity
                     "city_value_match": city_value,
                     "city_consistency_with_pincode": city_cons,
                     "city_ambiguity_penalty": city_amb,
@@ -1449,7 +868,6 @@ def main(limit=1000, excel=None, batch_size=200):
                     "country_ambiguity_penalty": country_amb,
                     "overall_score": overall,
                     "reason": "; ".join(reasons) if reasons else "",
-                    # Local address
                     "local_address": local_address,
                     "formatted_address": formatted_address,
                 }
@@ -1463,6 +881,84 @@ def main(limit=1000, excel=None, batch_size=200):
             columns=["input_id", "type", "pincode", "city", "state", "country", "src"]
         )
     )
+    return result_df, audit_df
+
+
+# ---------------- Public APIs ----------------
+
+
+def validate_single_address_df(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    API entry point used by address_validator.py.
+
+    Expects a DataFrame with columns:
+        address1,address2,address3,city,state,pincode,country
+    Optionally an 'id' column; if missing it will be auto-assigned.
+
+    Returns a result DataFrame in the same shape as produced by main().
+    """
+    eng = get_db_connection()
+    with eng.begin() as con:
+        postal = pd.read_sql(
+            "SELECT city,state,pincode,country FROM ref.postal_pincode", con
+        )
+        rta = pd.read_sql(
+            "SELECT city,state,pincode,country FROM ref.rta_pincode", con
+        )
+        world = pd.read_sql(
+            "SELECT city,country FROM ref.world_cities", con
+        )
+        states_ref = pd.read_sql(
+            "SELECT state,abbreviation FROM ref.states_alias", con
+        )
+        t30 = pd.read_sql(
+            "SELECT city FROM ref.top_30_cities", con
+        )["city"].tolist()
+
+    result_df, _ = _run_validation(
+        inputs=df,
+        postal=postal,
+        rta=rta,
+        world=world,
+        states_ref=states_ref,
+        t30_list=t30,
+        batch_size=max(len(df), 1),
+    )
+    return result_df
+
+
+def main(limit=1000, excel=None, batch_size=200):
+    eng = get_db_connection()
+
+    with eng.begin() as con:
+        postal = pd.read_sql(
+            "SELECT city,state,pincode,country FROM ref.postal_pincode", con
+        )
+        rta = pd.read_sql(
+            "SELECT city,state,pincode,country FROM ref.rta_pincode", con
+        )
+        world = pd.read_sql(
+            "SELECT city,country FROM ref.world_cities", con
+        )
+        states_ref = pd.read_sql(
+            "SELECT state,abbreviation FROM ref.states_alias", con
+        )
+        t30 = pd.read_sql(
+            "SELECT city FROM ref.top_30_cities", con
+        )["city"].tolist()
+        inputs = pd.read_sql(
+            "SELECT * FROM input.addresses ORDER BY id LIMIT {}".format(int(limit)), con
+        )
+
+    result_df, audit_df = _run_validation(
+        inputs=inputs,
+        postal=postal,
+        rta=rta,
+        world=world,
+        states_ref=states_ref,
+        t30_list=t30,
+        batch_size=batch_size,
+    )
 
     # Excel output
     out_dir = os.path.join(os.getcwd(), "outputs")
@@ -1472,6 +968,7 @@ def main(limit=1000, excel=None, batch_size=200):
     else:
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         xls_path = os.path.join(out_dir, f"validation_results_{timestamp}.xlsx")
+
     try:
         with pd.ExcelWriter(xls_path) as xl:
             result_df.to_excel(xl, index=False, sheet_name="results")
@@ -1480,7 +977,6 @@ def main(limit=1000, excel=None, batch_size=200):
         print(
             f"ERROR: Could not write to Excel file. Is '{xls_path}' open in another program?"
         )
-        # Exit gracefully without writing the file, but after DB operations
 
     # Persist full result to DB
     with eng.begin() as con:
@@ -1503,7 +999,6 @@ def main(limit=1000, excel=None, batch_size=200):
 
 
 if __name__ == "__main__":
-
     import argparse
 
     ap = argparse.ArgumentParser()
