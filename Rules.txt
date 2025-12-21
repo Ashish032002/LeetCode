@@ -1,0 +1,377 @@
+Source: Transaction
+
+- Scheme_Code
+- Transaction_Type
+- Transaction Mode
+- Transaction Units
+- Transaction Amount
+- Trade Date
+- User Code
+- User Transaction Number
+- IPO_CDT_Flag
+
+- Locked_Date: 
+    select locked_date from scheme_setup where scheme_code = Input.Scheme_Code; 
+- SO_Units, SO_Amount, SO_Scheme_Code: 
+
+    SELECT c.units, c.amount, c.scheme_code
+          FROM consolidated_daily_trades c, transaction_types t
+         WHERE c.user_code = Input.user_code
+           AND c.user_trxnno = Input.User_Transaction_Number
+           AND c.trxn_type = t.trxn_type
+           AND t.trxn_db_cr = 'SO';
+
+- DERIVED_SI_AMOUNT_FROM_SO: 
+    IF (Variables.SO_Units > 0){
+            DERIVED_SI_AMOUNT_FROM_SO = SO_Units * get_nav_value(SO_Scheme_Code, Input.Trade_Date);
+            
+                    SELECT 
+                    trunc_round_amount,
+                    decimInput.Transaction_Amount
+                    INTO ltrun_round,
+                        ldecimals
+                    FROM scheme_setup
+                    WHERE scheme_code = Input.scheme_code;
+            
+                    IF ltrun_round = 'T' THEN
+                        DERIVED_SI_AMOUNT_FROM_SO = trunc(DERIVED_SI_AMOUNT_FROM_SO, ldecimals);
+                    ELSE
+                        DERIVED_SI_AMOUNT_FROM_SO = round(DERIVED_SI_AMOUNT_FROM_SO, ldecimals);
+
+        }
+      ELSE IF (SO_Amount > 0){
+        DERIVED_SI_AMOUNT_FROM_SO = SO_Amount;
+        }
+        If DERIVED_SI_AMOUNT_FROM_SO is NULL{
+            DERIVED_SI_AMOUNT_FROM_SO = Input.Transaction_Amount;
+        }
+
+- TRXN_DB_CR:
+    SELECT t.trxn_db_cr FROM transaction_types t WHERE t.trxn_type = Input.Transaction_Type;
+
+- Scheme_Amount_Low_Temp, Scheme_Amount_High_Temp, Scheme_Units_Low_Temp, Scheme_Units_High_Temp: 
+        -- Resolve TRXN_DB_CR from transaction_types (throws trxn_type_not_found if absent)
+    
+    -- Try Scheme level thresholds
+    SELECT lower_amount, upper_amount, lower_units, upper_units
+        INTO  amt_low_temp, amt_high_temp, units_low_temp, units_high_temp
+        FROM scheme_limits
+        WHERE scheme_code = Input.Scheme_Code AND trxn_db_cr = Variables.TRXN_DB_CR;   -- Master: scheme_limits
+    If NO_DATA_FOUND { set all to 0 }
+
+-  Sub_Fund_Code :
+    SELECT parent_sub_fund_code FROM scheme_setup WHERE scheme_code = Input.Scheme_Code;
+
+- SubFund_Amount_Low_Temp, SubFund_Amount_High_Temp, SubFund_Units_Low_Temp, SubFund_Units_High_Temp: 
+       
+        SELECT lower_amount, upper_amount, lower_units, upper_units
+            FROM scheme_limits
+            WHERE scheme_code = Variables.Sub_Fund_Code AND trxn_db_cr = Variables.TRXN_DB_CR;
+        If NO_DATA_FOUND { set all to 0 }
+
+- Fund_Code : 
+    SELECT parent_fund_code FROM scheme_master WHERE scheme_code = Input.Scheme_Code;
+
+- Fund_Amount_Low_Temp, Fund_Amount_High_Temp, Fund_Units_Low_Temp, Fund_Units_High_Temp: 
+
+        SELECT lower_amount, upper_amount, lower_units, upper_units
+            FROM scheme_limits
+            WHERE scheme_code = Variables.Fund_Code AND trxn_db_cr = Variables.TRXN_DB_CR;
+        If NO_DATA_FOUND { set all to 0; }
+    
+
+- Scheme_Controls_Closing_Balance: 
+    SELECT closing_balance
+			  FROM scheme_controls
+			 WHERE scheme_code = Input.Scheme_Code;
+
+- Sub_Fund_Closing_Balance, Sub_Fund_Closing_Assets:
+    SELECT SUM(closing_balance),
+			       SUM(closing_balance *
+				   get_nav_value(scheme_code, Trade_Date))
+			  FROM scheme_controls
+			 WHERE scheme_code IN
+			       (SELECT scheme_code
+				  FROM scheme_setup
+				 WHERE parent_sub_fund_code = Variables.Sub_Fund_Code);
+- NAV:
+    Variables.NAV = get_nav_value(Input.Scheme_Code, Input.Trade_Date);
+  IF (Variables.NAV = 0 OR Variables.NAV = -1){    
+    
+    SELECT nvl(s.segregated_scheme_flag, 'N')
+        INTO ls_segregated_scheme_flag
+        FROM scheme_setup s
+       WHERE s.scheme_code = Input.Scheme_Code;
+    IF (ls_amc_code = 'FTI' AND ls_segregated_scheme_flag = 'Y'){ 
+      Variables.NAV = 1;
+      }
+    }
+
+
+- Fund_Closing_Balance, Fund_Closing_Assets:
+    SELECT SUM(closing_balance),
+			       SUM(closing_balance *
+				   variables.NAV)
+			  FROM scheme_controls
+			 WHERE scheme_code IN
+			       (SELECT scheme_code
+				  FROM scheme_setup
+				 WHERE parent_sub_fund_code = Variables.Sub_Fund_Code);
+
+- LOWER_AMOUNT_LIMIT, LOWER_UNITS_LIMIT, UPPER_AMOUNT_LIMIT, UPPER_UNITS_LIMIT, Units_Flag, Amount_Flag: 
+    
+    IF (Scheme_Amount_Low_Temp <> 0 OR Scheme_Amount_High_Temp <> 0) {
+        LOWER_AMOUNT_LIMIT = Scheme_Amount_Low_Temp;
+        UPPER_AMOUNT_LIMIT = Scheme_Amount_High_Temp;
+        Amount_Flag  = 'S';}
+
+    IF (Scheme_Units_Low_Temp <> 0 OR Scheme_Units_High_Temp <> 0){
+        LOWER_UNITS_LIMIT = Scheme_Units_Low_Temp;
+        UPPER_UNITS_LIMIT = Scheme_Units_High_Temp;
+        Units_Flag  = 'S';
+        }
+    IF ((Scheme_Amount_Low_Temp = 0 AND Scheme_Amount_High_Temp = 0) OR
+	   (Scheme_Units_Low_Temp = 0 AND Scheme_Units_High_Temp = 0))
+    {
+        
+        IF (SubFund_Amount_Low_Temp <> 0 OR SubFund_Amount_High_Temp <> 0) {
+            LOWER_AMOUNT_LIMIT = SubFund_Amount_Low_Temp;
+            UPPER_AMOUNT_LIMIT = SubFund_Amount_High_Temp;
+            Amount_Flag  = 'B';
+        }
+        IF (SubFund_Units_Low_Temp <> 0 OR SubFund_Units_High_Temp <> 0){
+            LOWER_UNITS_LIMIT = SubFund_Units_Low_Temp;
+            UPPER_UNITS_LIMIT = SubFund_Units_High_Temp;
+            Units_Flag  = 'B';
+        }
+
+    }
+    IF ((SubFund_Amount_Low_Temp = 0 AND SubFund_Amount_High_Temp = 0) OR
+	   (SubFund_Units_Low_Temp = 0 AND SubFund_Units_High_Temp = 0)){
+        
+        IF (Fund_Amount_Low_Temp <> 0 OR Fund_Amount_High_Temp <> 0) {
+            LOWER_AMOUNT_LIMIT = Fund_Amount_Low_Temp;
+            UPPER_AMOUNT_LIMIT = Fund_Amount_High_Temp;
+            Amount_Flag  = 'F';
+        }
+        IF (Fund_Units_Low_Temp <> 0 OR Fund_Units_High_Temp <> 0){
+            LOWER_UNITS_LIMIT = Fund_Units_Low_Temp;
+            UPPER_UNITS_LIMIT = Fund_Units_High_Temp;
+            Units_Flag  = 'F';
+        }
+    }
+
+
+- Scheme_Level: 
+    SELECT COUNT(ROWID)
+	  INTO ll_count
+	  FROM scheme_limits
+	 WHERE trxn_db_cr IN (SELECT trxn_db_cr
+				FROM transaction_types
+			       WHERE trxn_type = Input.Transaction_Type) AND
+	       scheme_code = Input.Scheme_Code;
+
+	IF (ll_count > 0)
+	{
+		ls_scheme_level = 'S';
+	}
+	ELSE
+	{	ls_scheme_level = NULL;
+	}
+	
+	IF (ls_scheme_level IS NULL)
+	{
+		SELECT nvl(parent_sub_fund_code, ' ')
+		  INTO ls_sub_fund_code
+		  FROM scheme_master
+		 WHERE scheme_code = Input.Scheme_Code;
+	
+		IF (length(ls_sub_fund_code) <> 0)
+		{
+			SELECT nvl(aggregate_flag, 'N')
+			  INTO ls_aggr_flag
+			  FROM scheme_master
+			 WHERE scheme_code = ls_sub_fund_code;
+		
+			IF (ls_aggr_flag = 'Y')
+			{
+				SELECT COUNT(ROWID)
+				  INTO ll_count
+				  FROM scheme_limits
+				 WHERE trxn_db_cr IN
+				       (SELECT trxn_db_cr
+					  FROM transaction_types
+					 WHERE trxn_type = Input.Transaction_Type) AND
+				       scheme_code = ls_sub_fund_code;
+			
+				IF( ll_count > 0 )
+				
+					{
+                        ls_scheme_level = 'B';
+                    }
+				
+				ELSE
+					{
+                        ls_scheme_level = NULL;
+                    }
+            }
+        }
+	}			
+                
+
+	IF (ls_scheme_level IS NULL)
+	{
+		SELECT nvl(parent_fund_code, ' ')
+		  INTO ls_fund_code
+		  FROM scheme_master
+		 WHERE scheme_code = Input.Scheme_Code;
+	
+		IF (length(TRIM(ls_fund_code)) <> 0)
+		{
+			SELECT nvl(aggregate_flag, 'N')
+			  INTO ls_aggr_flag
+			  FROM scheme_master
+			 WHERE scheme_code = ls_fund_code;
+		
+			IF (ls_aggr_flag = 'Y')
+			{
+				SELECT COUNT(ROWID)
+				  INTO ll_count
+				  FROM scheme_limits
+				 WHERE trxn_db_cr IN
+				       (SELECT trxn_db_cr
+					  FROM transaction_types
+					 WHERE trxn_type = Input.Transaction_Type) AND
+				       scheme_code = ls_fund_code;
+			
+				IF (ll_count > 0){
+					ls_scheme_level = 'F';
+                    }
+				ELSE
+					{
+                        ls_scheme_level = NULL;
+                    }
+			}
+        }
+    }
+
+- Scheme_Code:
+    IF Variables.Scheme_Level = 'S'
+        Scheme_Code = Input.Scheme_Code;
+    ELSE IF Variables.Scheme_Level = 'B' 
+        Scheme_Code = Variables.Sub_Fund_Code;
+    ELSE IF Variables.Scheme_Level = 'F'
+        Scheme_Code = Variables.Fund_Code;
+    ELSE
+        Scheme_Code = NULL;
+-
+- Closing_Assets, Closing_Balance: 
+    IF Variables.Amount_Flag = 'S'{
+		Closing_Assets = Variables.Scheme_Controls_Closing_Balance * Variables.NAV;
+        } 
+	ELSE IF (Variables.Amount_Flag = 'B') {
+		Closing_Assets = Sub_Fund_Closing_Assets;
+        }
+	ELSE IF (Variables.Amount_Flag = 'F'){
+		Closing_Assets = Fund_Closing_Assets;
+        }
+
+	IF (Variables.Units_Flag = 'B'){
+		Closing_Balance = Variables.Sub_Fund_Closing_Balance;
+        }
+	ELSE IF (Variables.Units_Flag = 'F'){
+		Closing_Balance = Variables.Fund_Closing_Balance;
+    }
+	Closing_Assets = round(Closing_Assets, 2);
+
+	IF (Input.Transaction_Units IS NULL OR Input.Transaction_Units = 0) AND
+	   (Variables.DERIVED_SI_AMOUNT_FROM_SO IS NOT NULL)
+		ll_units = abs(Variables.DERIVED_SI_AMOUNT_FROM_SO) /  Variables.NAV;
+	ELSE
+		ll_units = Input.Transaction_Units;
+
+	IF (Variables.DERIVED_SI_AMOUNT_FROM_SO IS NULL OR Variables.DERIVED_SI_AMOUNT_FROM_SO = 0) AND
+	   (Input.Transaction_Units IS NOT NULL) THEN
+		ll_amount = abs(Input.Transaction_Units) *  Variables.NAV; 
+	ELSE
+		ll_amount = Variables.DERIVED_SI_AMOUNT_FROM_SO;
+
+
+    IF (Input.Transaction_Sign = '+' AND
+	   Input.Transaction_Mode = 'N') {
+		Closing_Balance = Closing_Balance + ll_units;
+		Closing_Assets  = Closing_Assets + ll_amount;
+        }
+	ELSE IF (Input.Transaction_Sign = '-' AND
+	      Input.Transaction_Mode = 'N'){
+		Closing_Balance = Closing_Balance - ll_units;
+		Closing_Assets  = Closing_Assets - ll_amount;
+        }
+	ELSE IF (Input.Transaction_Sign = '+' AND
+	      Input.Transaction_Mode = 'R') {
+		Closing_Balance = Closing_Balance + ll_units;
+		Closing_Assets  = Closing_Assets + ll_amount;
+        }
+	ELSE IF (Input.Transaction_Sign = '-' AND
+	      Input.Transaction_Mode = 'R'){
+		Closing_Balance = Closing_Balance - ll_units;
+		Closing_Assets  = Closing_Assets - ll_amount;
+        }
+	IF (Closing_Assets < 0){ 
+		Closing_Assets = 0;
+        }	
+
+	IF (Closing_Balance < 0){
+		Closing_Balance = 0;
+        }
+	
+    SELECT 
+    trunc_round_amount,
+    decimInput.Transaction_Amount
+    INTO ltrun_round,
+        ldecimals
+    FROM scheme_setup
+    WHERE scheme_code = Input.scheme_code;
+
+    IF ltrun_round = 'T' THEN
+        Closing_Assets = trunc(Closing_Assets, ldecimals);
+    ELSE
+        Closing_Assets = round(Closing_Assets, ldecimals);
+		
+		
+Rule:
+IF (Input.ipo_cdt_flag = 'C' AND NOT (Input.Transaction_Mode <> 'R' AND Variables.locked_date >= SYSDATE)) {
+
+        
+    IF (Variables.TRXN_DB_CR is NULL) {
+        RETURN 'Trxn Type not found in Transaction Types master'; 
+        }
+
+
+    -- (RULE) { Scheme Controls must exist at the level implied by thresholds }
+    IF (Units_Flag='S' OR Amount_Flag='S') {
+        IF (Scheme_Controls_Closing_Balance is NULL) {
+            Raise Error 'Scheme Code not found in Scheme Controls'; 
+        }
+    }
+    ELSE IF (Units_Flag='B' OR Amount_Flag='B') {
+        IF (Sub_Fund_Closing_Balance, Sub_Fund_Closing_Assets are NULL) 
+        {
+            Raise Error 'Sub Fund Code not found in Scheme Controls'; 
+        }
+    }
+    ELSE IF (Units_Flag='F' OR Amount_Flag='F') {
+        IF (Fund_Closing_Balance, Fund_Closing_Assets are NULL) { 
+            Raise Error 'Fund Code not found in Scheme Controls'; 
+        }
+    }
+
+    IF (Variables.Closing_Assets < Variables.LOWER_AMOUNT_LIMIT) THEN { add_message('Scheme Unit amount value falls below Scheme lower limit'); }
+
+    IF (Variables.Closing_Assets > Variables.UPPER_AMOUNT_LIMIT) THEN { add_message('Scheme Unit amount value exceeds Scheme upper limit.'); }
+
+    IF (Variables.Closing_Balance < Variables.LOWER_UNITS_LIMIT) THEN { add_message('Scheme Unit capital value falls below Scheme lower limit.'); }
+
+    IF (Variables.Closing_Balance > Variables.UPPER_UNITS_LIMIT) THEN { add_message('Scheme Unit capital value exceeds Scheme upper limit.'); }
+
+}
