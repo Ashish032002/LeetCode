@@ -1,23 +1,33 @@
-import java.util.Arrays;
-
 class Solution {
     public int findDuplicate(int[] nums) {
-        int slow = nums[0];
-        int fast = nums[0];
+        int n = nums.length - 1;
+        int duplicate = 0;
 
-        do{
-            slow = nums[slow];
-            fast = nums[nums[fast]];
+        int maxBit = 31 - Integer.numberOfLeadingZeros(n);
 
-        }while(slow != fast);
+        for (int bit = 0; bit <= maxBit; bit++) {
+            int mask = 1 << bit;
 
-        slow = nums[0];
+            int numsCount = 0;
+            int rangeCount = 0;
 
-        while(slow != fast){
-            slow = nums[slow];
-            fast = nums[fast];
+            for (int num : nums) {
+                if ((num & mask) != 0) {
+                    numsCount++;
+                }
+            }
+
+            for (int i = 1; i <= n; i++) {
+                if ((i & mask) != 0) {
+                    rangeCount++;
+                }
+            }
+
+            if (numsCount > rangeCount) {
+                duplicate |= mask;
+            }
         }
 
-        return slow;
+        return duplicate;
     }
 }
