@@ -11,61 +11,61 @@ class Solution {
 
     private void mergeSort(int[] nums, int low, int high) {
 
-        if (low >= high) {
+        if(low >= high){
             return;
         }
 
         int mid = low + (high - low) / 2;
 
-        mergeSort(nums, low, mid);
-        mergeSort(nums, mid + 1, high);
+        mergeSort(nums, low , mid );
+        mergeSort(nums , mid + 1 , high);
 
         countPairs(nums, low, mid, high);
 
-        merge(nums, low, mid, high);
+        merge(nums , low , mid , high);
+       
     }
 
-    private void countPairs(int[] nums, int low, int mid, int high) {
+    private void countPairs(int[] nums, int low, int mid, int high) 
+    { 
+    int right = mid + 1;
 
-        int right = mid + 1;
-
-        for (int i = low; i <= mid; i++) {
-
-            while (right <= high &&
-                   nums[i] > 2L * nums[right]) {
-                right++;
-            }
-
-            count += right - (mid + 1);
+    for(int i = low ; i <= mid ; i ++){
+        while(right <= high && nums[i] > 2L * nums[right]){
+            right++;
         }
+        count += right - (mid + 1);
+    }
+         
     }
 
     private void merge(int[] nums, int low, int mid, int high) {
 
         ArrayList<Integer> temp = new ArrayList<>();
 
-        int left = low;
+        int left = low ;
         int right = mid + 1;
 
-        while (left <= mid && right <= high) {
+        while(left <= mid && right <= high){
 
-            if (nums[left] <= nums[right]) {
+            if(nums[left] <= nums[right]){
                 temp.add(nums[left++]);
-            } else {
-                temp.add(nums[right++]);
             }
+            else{
+                temp.add(nums[right++]);
+            }  
         }
 
-        while (left <= mid) {
+        while(left <= mid){
             temp.add(nums[left++]);
         }
 
-        while (right <= high) {
+        while(right <= high){
             temp.add(nums[right++]);
         }
 
-        for (int i = low; i <= high; i++) {
+        for(int i = low ; i <= high ; i++ ){
             nums[i] = temp.get(i - low);
-        }
+        }   
     }
 }
