@@ -7,12 +7,9 @@ class Solution {
             for(int j = 0 ; j < m ; j++){
                 if(matrix[i][j] == target){
                     return true;
-                }
-               
+                }  
             }
-
         }
-        return false;
-     
+        return false; 
     }
 }
