@@ -2,62 +2,70 @@ import java.util.*;
 
 class Solution {
 
+    private int n;
+    private List<List<String>> ans;
+
     public List<List<String>> solveNQueens(int n) {
 
-        List<List<String>> ans = new ArrayList<>();
-        List<String> current = new ArrayList<>();
+        this.n = n;
+        this.ans = new ArrayList<>();
 
-        solve(0, n, ans, current);
+        char[][] board = new char[n][n];
+
+        for (int i = 0; i < n; i++) {
+            Arrays.fill(board[i], '.');
+        }
+
+        backtrack(0, 0, 0, 0, board);
 
         return ans;
     }
 
-    public void solve(int row, int n,
-                      List<List<String>> ans,
-                      List<String> current) {
+    private void backtrack(int row,
+                           int cols,
+                           int diag1,
+                           int diag2,
+                           char[][] board) {
 
-        // All queens have been placed
+        // All queens placed
         if (row == n) {
-            ans.add(new ArrayList<>(current));
+
+            List<String> solution = new ArrayList<>();
+
+            for (int i = 0; i < n; i++) {
+                solution.add(new String(board[i]));
+            }
+
+            ans.add(solution);
             return;
         }
 
-        for (int i = 0; i < n; i++) {
+     
+        int available =
+                ((1 << n) - 1) & ~(cols | diag1 | diag2);
 
-            if (!isSafe(row, i, current)) {
-                continue;
-            }
+        while (available != 0) {
 
-            char[] board = new char[n];
-            Arrays.fill(board, '.');
+       
+            int position = available & -available;
 
-            board[i] = 'Q';
+            available -= position;
 
-            current.add(new String(board));
-        
-            solve(row + 1, n, ans, current);
+          
+            int col = Integer.numberOfTrailingZeros(position);
 
-            current.remove(current.size() - 1);
+            board[row][col] = 'Q';
+
+            backtrack(
+                row + 1,
+                cols | position,
+                (diag1 | position) << 1,
+                (diag2 | position) >> 1,
+                board
+            );
+
+           
+            board[row][col] = '.';
         }
-    }
-
-    public boolean isSafe(int row, int col,
-                           List<String> current) {
-
-        for (int r = 0; r < row; r++) {
-
-            String previousRow = current.get(r);
-
-            if (previousRow.charAt(col) == 'Q') {
-                return false;
-            }
-            int queenCol = previousRow.indexOf('Q');
-
-            if (Math.abs(r - row) == Math.abs(queenCol - col)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 }
