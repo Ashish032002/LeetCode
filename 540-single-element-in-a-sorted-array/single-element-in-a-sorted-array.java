@@ -1,26 +1,25 @@
 class Solution {
     public int singleNonDuplicate(int[] nums) {
 
-        int left = 0;
+        int left = 0 ;
         int right = nums.length - 1;
 
-        while (left < right) {
+        while(left < right){
 
-            int mid = left + (right - left) / 2;
+            int mid = left + (right - left) /2;
 
-            // Make mid even
-            if (mid % 2 == 1) {
+            if(mid % 2 == 1){
                 mid--;
             }
 
-            // Pair is correct: [mid, mid+1]
-            if (nums[mid] == nums[mid + 1]) {
+            if(nums[mid] == nums[mid + 1]){
                 left = mid + 2;
-            } 
-            else {
-                // Single element is at mid or before mid
+            }
+
+            else{
                 right = mid;
             }
+            
         }
 
         return nums[left];
