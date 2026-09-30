@@ -1,0 +1,61 @@
+package com.cams.core.rules.units
+
+unit TrxnLimitPurchaseUnitValidationUnit
+
+import com.cams.core.api.requests.RuleEngineRequest
+import com.cams.core.rules.utils.RuleUnitUtils
+import com.cams.core.rules.utils.TrxnLimitValidationUtils
+import java.math.BigDecimal
+
+rule "TrxnLimit - Purchase Units Exceed Maximum"
+when
+    $request: /ruleEngineRequest[
+        TrxnLimitValidationUtils.isPurchaseUnitSignGuardPassed($request),
+        TrxnLimitValidationUtils.getPurchaseUnitMaxUnits($request).compareTo(BigDecimal.ZERO) > 0,
+        TrxnLimitValidationUtils.getPurchaseUnitTotal($request).compareTo(TrxnLimitValidationUtils.getPurchaseUnitMaxUnits($request)) > 0
+    ]
+then
+    $request.getErrorDetails().addErrorForCode("3830008",
+        TrxnLimitValidationUtils.getPurchaseUnitTotal($request).toPlainString(),
+        TrxnLimitValidationUtils.getPurchaseUnitMaxUnits($request).toPlainString());
+end
+
+rule "TrxnLimit - Purchase Units Percentage Exceeds Maximum (Scheme Level)"
+when
+    $request: /ruleEngineRequest[
+        TrxnLimitValidationUtils.isPurchaseUnitSignGuardPassed($request),
+        TrxnLimitValidationUtils.getPurchaseUnitClosingBalance($request).compareTo(BigDecimal.ZERO) > 0,
+        TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request).compareTo(BigDecimal.ZERO) > 0,
+        TrxnLimitValidationUtils.getPurchaseUnitPercentage($request).compareTo(TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request)) > 0
+    ]
+then
+    $request.getErrorDetails().addErrorForCode("3830025",
+        TrxnLimitValidationUtils.getPurchaseUnitPercentage($request).toPlainString(),
+        TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request).toPlainString());
+end
+
+rule "TrxnLimit - Purchase Units Percentage Exceeds Maximum (Aggregated Level)"
+when
+    $request: /ruleEngineRequest[
+        TrxnLimitValidationUtils.isPurchaseUnitSignGuardPassed($request),
+        TrxnLimitValidationUtils.getPurchaseUnitAggrClosingBalance($request).compareTo(BigDecimal.ZERO) > 0,
+        TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request).compareTo(BigDecimal.ZERO) > 0,
+        TrxnLimitValidationUtils.getPurchaseUnitAggrPercentage($request).compareTo(TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request)) > 0
+    ]
+then
+    $request.getErrorDetails().addErrorForCode("3830009",
+        TrxnLimitValidationUtils.getPurchaseUnitAggrPercentage($request).toPlainString(),
+        TrxnLimitValidationUtils.getPurchaseUnitMaxPerc($request).toPlainString());
+end
+
+rule "TrxnLimit - Purchase Units Below Minimum"
+when
+    $request: /ruleEngineRequest[
+        TrxnLimitValidationUtils.isPurchaseUnitSignGuardPassed($request),
+        TrxnLimitValidationUtils.getPurchaseUnitTotalForMin($request).compareTo(TrxnLimitValidationUtils.getPurchaseUnitMinUnits($request)) < 0
+    ]
+then
+    $request.getErrorDetails().addErrorForCode("3830010",
+        TrxnLimitValidationUtils.getPurchaseUnitTotalForMin($request).toPlainString(),
+        TrxnLimitValidationUtils.getPurchaseUnitMinUnits($request).toPlainString());
+end
