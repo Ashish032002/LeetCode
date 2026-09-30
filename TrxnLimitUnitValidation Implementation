@@ -1,0 +1,2608 @@
+Variable Assignemnt:
+
+SECTION A: INPUT PARAMETERS
+
+
+From Transaction/CDT:
+- USER_CODE
+- AUTO_TRANSACTION_NUMBER
+- TRANSACTION_TYPE
+- TRANSACTION_MODE
+- SCHEME_CODE
+- NAV_SERIAL_NO
+- TRADE_DATE
+- SUB_TRANSACTION_TYPE
+- FOLIO_NUMBER
+- PACKAGE_NAME
+- INSURANCE_ID
+- SIP_FLAG
+- PAYMENT_MECHANISM
+- PAYOUT_MECHANISM
+- PERIODICITY
+- GUARDIAN_DATE_OF_BIRTH
+- SIP_REGISTRATION_DATE
+- REMARKS
+- APPLICATION_NUMBER
+- USER_TRANSACTION_NUMBER
+- TRANSACTION_NATURE
+- PARENT_SUB_FUND_CODE
+- LINK_SCHEME_CODE (input parameter, can be NULL)
+- Entry_Date
+- Amount
+- Units
+- Post_Validate_Flag (default 'V')
+- IPO_CDT_Flag (source indicator: 'C'=CDT, 'I'=IPO, 'S'=SIP)
+- New_Purch_Typ_Flag (optional input)
+- Decimal_Amount
+- SC_Closing_Balance (scheme_controls.closing_balance)
+- Imp_Val_Post (for import validation)
+- Periodicity (SIP frequency)
+- Auto_Amount (SIP amount)
+- Swap_Option (plan_auto_trxn)
+- Instalment_No (SIP instalment number)
+- Chan_Exg_Reg_Date (channel/exchange registration date)
+- Accredit_Inv_Flag (accredited investor flag)
+- NAV (current scheme NAV)
+
+Derived from Master:
+- AMC_Code
+- Transaction_Sign (from transaction_types)
+- Transaction_DB_CR (trxn_db_cr)
+- Folio_Exists (boolean)
+
+
+SECTION B: VARIABLE ASSIGNMENT (RAW DATA RETRIEVAL ONLY - NO IF/ELSE)
+
+
+Following variables are retrieved via raw SQL queries or direct assignments.
+NO conditional logic appears here. All IF/ELSE/CASE statements are moved to
+Business Logic Section.
+
+
+B.1: Sub-Transaction Types and Apply Limits
+
+
+- Apply_Limits_From_Master:
+  SELECT apply_limits
+  FROM sub_trxn_types_master
+  WHERE sub_trxn_type = Input.Sub_Transaction_Type;
+
+- IS_SYSTEMATIC_PLAN:
+  SELECT nvl(systematic, 'N')
+  FROM sub_trxn_types_master
+  WHERE sub_trxn_type = nvl(Input.Sub_Transaction_Type, 'N');
+
+- IS_SYSTEMATIC_PLAN_Temp:
+  SELECT nvl(systematic, 'N')
+  FROM sub_trxn_types_master
+  WHERE sub_trxn_type = nvl(Input.Sub_Transaction_Type, 'N');
+
+
+B.2: User Master Queries
+
+
+- User_Type:
+  SELECT nvl(user_type, 'XYZ')
+  FROM user_master
+  WHERE user_id = Input.User_Code;
+
+- DP_ID_REQUIRED:
+  SELECT nvl(dp_id_required, 'N')
+  FROM user_master
+  WHERE user_id = Input.User_Code;
+
+
+B.3: CDT Queries (if IPO_CDT_Flag = 'C')
+
+
+- Auto_Trxn_No_From_CDT:
+  SELECT nvl(Input.Auto_Transaction_Number, cdt.auto_trxn_no)
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- CDT_Remarks:
+  SELECT cdt.remarks
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Source_Program:
+  SELECT cdt.source_program
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Mother_Name:
+  SELECT cdt.mother_name
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Package_Name_From_CDT:
+  SELECT cdt.package_name
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Application_No_From_CDT:
+  SELECT cdt.application_no
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Spouse_First_Name:
+  SELECT spouse_first_name
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type;
+
+- Tax_Status_Code:
+  SELECT cdt.tax_status_code
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.scheme_code = Input.Scheme_Code;
+
+- Occupation_Code:
+  SELECT cdt.occupation_code
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.scheme_code = Input.Scheme_Code;
+
+- GDate_Of_Birth_From_CDT:
+  SELECT cdt.gdate_of_birth
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.auto_trxn_no IS NOT NULL;
+
+
+B.4: Switch In Scheme Code (for SO/SI transactions)
+
+
+- Switch_In_Scheme_Code:
+  SELECT cdt.scheme_code
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.trxn_type LIKE 'SI%';
+
+
+B.5: Scheme Setup Queries
+
+
+- Link_Scheme_Code_Raw:
+  SELECT link_scheme_code
+  FROM scheme_setup
+  WHERE scheme_code = Input.Scheme_Code;
+
+- SI_To_Be_Rounded:
+  SELECT si_to_be_rounded
+  FROM scheme_options
+  WHERE scheme_code = Input.Scheme_Code;
+
+- Scheme_Category:
+  SELECT scheme_category
+  FROM scheme_setup s
+  WHERE s.scheme_code = Input.Scheme_Code;
+
+- SYS_VALIDATE:
+  SELECT nvl(ss.sys_validate, 'T')
+  FROM scheme_setup ss
+  WHERE ss.scheme_code = Input.Scheme_Code;
+
+- Scheme_Controls_Closing_Balance:
+  SELECT closing_balance
+  FROM scheme_controls
+  WHERE scheme_code = Input.Scheme_Code;
+
+- Segregated_Scheme_Flag:
+  SELECT nvl(segregated_scheme_flag, 'N')
+  FROM scheme_setup
+  WHERE scheme_code = Input.Scheme_Code;
+
+
+B.6: AMC Queries
+
+
+- Convert_SO_To_ELSS_Multiples:
+  SELECT amc.convert_so_to_elss_multiples
+  FROM amc
+  WHERE amc_code = Input.AMC_Code;
+
+
+B.7: Plan Auto Transaction Queries (for Systematic transactions)
+
+
+- Swap_Option_SO_Scheme:
+  SELECT swap_option
+  FROM plan_auto_trxn pat
+  WHERE pat.scheme_code = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Switch_In_Scheme_Code
+          ELSE Input.Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+- Swap_Option_SI_Scheme:
+  SELECT swap_option
+  FROM plan_auto_trxn pat
+  WHERE pat.to_scheme = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Switch_In_Scheme_Code
+          ELSE Input.Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+- Frequency_SO_Scheme:
+  SELECT periodicity
+  FROM plan_auto_trxn pat
+  WHERE pat.scheme_code = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Reverse_Switch_SI_Scheme_Code
+          ELSE Input.Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+- Frequency_SI_Scheme:
+  SELECT periodicity
+  FROM plan_auto_trxn pat
+  WHERE pat.to_scheme = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Input.Scheme_Code
+          ELSE SO_Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+- Auto_Amount_SO_Scheme:
+  SELECT auto_amount
+  FROM plan_auto_trxn pat
+  WHERE pat.scheme_code = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Reverse_Switch_SI_Scheme_Code
+          ELSE Input.Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+- Auto_Amount_SI_Scheme:
+  SELECT auto_amount
+  FROM plan_auto_trxn pat
+  WHERE pat.to_scheme = CASE
+          WHEN nvl(CDT_Remarks, '*#@') LIKE '%<VCA Reverse Switch%' THEN
+            Input.Scheme_Code
+          ELSE SO_Scheme_Code
+        END
+    AND auto_trxn_no = Auto_Trxn_No
+    AND folio_no = Input.Folio_Number;
+
+
+B.8: Reverse Switch SI Scheme Code
+
+
+- Reverse_Switch_SI_Scheme_Code:
+  SELECT cdt.scheme_code
+  FROM consolidated_daily_trades cdt
+  WHERE cdt.user_code = Input.User_Code
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.auto_trxn_no = Auto_Trxn_No
+    AND cdt.folio_no = Input.Folio_Number
+    AND cdt.trxn_type IN (SELECT tt.trxn_type
+                         FROM transaction_types tt
+                         WHERE tt.trxn_db_cr = 'SI')
+    AND cdt.remarks LIKE '%VCA Reverse Switch%';
+
+
+B.9: SO Scheme Code (for SI transactions)
+
+
+- SO_Scheme_Code_From_Det_Trades:
+  SELECT MAX(scheme_code)
+  FROM det_trades
+  WHERE user_code = Input.User_Code
+    AND user_trxnno = Input.User_Transaction_Number
+    AND folio_no = Input.Folio_Number
+    AND trxn_type IN (SELECT tt.trxn_type
+                     FROM transaction_types tt
+                     WHERE tt.trxn_db_cr = 'SO')
+    AND auto_trxn_no = Auto_Trxn_No;
+
+
+B.10: CdT Trades SIP Periodicity (for Insurance)
+
+
+- CdT_Trades_SIP_Periodicity:
+  SELECT c.periodicity
+  FROM cdt_trades_sip c
+  WHERE user_code = Input.User_Code
+    AND user_trxnno = Input.User_Transaction_Number;
+
+
+B.11: Check Limits from Payment/Payout Mechanism
+
+
+- CHECK_LIMIT_PLUS:
+  SELECT nvl(check_limit, 'Y')
+  FROM payment_mechanism
+  WHERE payment_mechanism = Input.Payment_Mechanism;
+
+- CHECK_LIMIT_MINUS:
+  SELECT nvl(check_limit, 'Y')
+  FROM payout_mechanism
+  WHERE payout_mechanism = Input.Payout_Mechanism;
+
+
+B.12: Sub-Fund Setup Queries
+
+
+- Parent_Sub_Fund_Code:
+  SELECT parent_sub_fund_code
+  FROM scheme_setup
+  WHERE scheme_code = Input.Scheme_Code;
+
+- SUB_FUND_AGGREGATE_FLAG:
+  SELECT nvl(aggregate_flag, 'N')
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- SUB_FUND_CODE:
+  SELECT sub_fund_code
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- AGGREG_PLUS_TX_FOR_LIMIT_CHECK:
+  SELECT nvl(aggreg_plus_tx_for_limit_check, 'Y')
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- AGGREG_DATE_FLAG_FOR_LIMIT:
+  SELECT nvl(aggreg_date_flag_for_limit, 'T')
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- AGGREG_TRXN_DB_CR_FOR_LIMIT:
+  SELECT aggreg_trxn_db_cr_for_limit
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- INC_TRIG_TRXN_FOR_AGGRE_LIMIT:
+  SELECT nvl(inc_trig_trxn_for_aggre_limit, 'Y')
+  FROM sub_fund_setup
+  WHERE sub_fund_code = Parent_Sub_Fund_Code;
+
+- AGGREG_TRXN_DB_CR_List:
+  SELECT '''' || listagg(trxn_db_cr, ',') within GROUP(ORDER BY trxn_db_cr) || ''''
+  FROM (SELECT DISTINCT trxn_db_cr
+        FROM transaction_types
+        WHERE trxn_sign = '+');
+
+- DB_CR_COUNT:
+  SELECT COUNT(1)
+  FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT));
+
+
+B.13: New Purchase Type Flag Count
+
+
+- New_Purchase_Type_Flag_Count:
+  SELECT COUNT(*)
+  FROM dual
+  WHERE EXISTS (SELECT 1
+                FROM det_trades dt, transaction_types tt
+                WHERE dt.trxn_type = tt.trxn_type
+                  AND tt.load_id <> 'BONUS'
+                  AND dt.folio_no = Input.Folio_Number
+                UNION ALL
+                SELECT 1
+                FROM det_trades_history dth, transaction_types tt
+                WHERE dth.trxn_type = tt.trxn_type
+                  AND tt.load_id <> 'BONUS'
+                  AND dth.folio_no = Input.Folio_Number);
+
+
+B.14: Employee/Company Folio Exists
+
+
+- Employee_Or_Company_Folio_Exists:
+  SELECT COUNT(*)
+  FROM dual
+  WHERE EXISTS (SELECT 1
+                FROM employee_master e, company_master c
+                WHERE e.company_code = c.company_code
+                  AND e.folio_no = Input.Folio_Number
+                  AND e.scheme_code = Input.Scheme_Code);
+
+
+B.15: Smart STP Package Exists
+
+
+- Smart_STP_Package_Exists:
+  SELECT count(*)
+  FROM package_investment_setup p
+  WHERE p.package_name = Package_Name
+    AND p.package_type = 'SMART_STP';
+
+
+B.16: Key Employee Folio Exists
+
+
+- Key_Employee_Folio_Exists:
+  SELECT COUNT(1)
+  FROM dual
+  WHERE EXISTS (SELECT 1
+                FROM key_emp_details k
+                WHERE k.folio_no = Input.Folio_Number
+                  AND Input.Trade_Date BETWEEN k.date_of_addition
+                                          AND nvl(k.date_of_removal, '31-Dec-2999'));
+
+
+B.17: Investor Plan Exists Queries
+
+
+- Investor_Plan_Exists_SubFund:
+  SELECT 1
+  FROM dual
+  WHERE EXISTS (SELECT 1
+                FROM investor_plan
+                WHERE folio_no = Input.Folio_Number
+                  AND scheme_code IN (SELECT scheme_code
+                                     FROM scheme_setup
+                                     WHERE parent_sub_fund_code = Sub_Fund_Code));
+
+- Investor_Plan_Exists_Scheme:
+  SELECT 1
+  FROM dual
+  WHERE EXISTS (SELECT 1
+                FROM investor_plan
+                WHERE folio_no = Input.Folio_Number
+                  AND scheme_code IN (Input.Scheme_Code, Link_Scheme_Code));
+
+
+B.18: Investor Plan Closing Balance
+
+
+- Investor_Plan_Closing_Balance:
+  SELECT nvl(closing_balance, 0)
+  FROM investor_plan
+  WHERE scheme_code = Input.Scheme_Code
+    AND folio_no = Input.Folio_Number;
+
+
+B.19: Tax Status Occupation Limits
+
+
+- Tax_Status_Occ_Limits_Record:
+  SELECT new_pur_min_value, new_pur_max_value, addl_pur_min_value, addl_pur_max_value
+  FROM tax_status_occ_limits t
+  WHERE t.tax_status_code = Tax_Status_Code
+    AND t.occupation_code = Occupation_Code;
+
+
+B.20: Application Parameter - Exclude Min Amount Unit Validation
+
+
+- EXCLUDE_MIN_AMOUNT_UNIT_VALIDATION_EXG:
+  SELECT key_value
+  FROM application_parameters
+  WHERE key_name = 'EXCLUDE_MIN_AMOUNT_UNIT_VALIDATION_EXG';
+
+- ALLOW_LUMPSUM_ONLY_FOR_KMP:
+  SELECT key_value
+  FROM application_parameters
+  WHERE key_name = 'ALLOW_LUMPSUM_ONLY_FOR_KMP';
+
+
+B.21: Redemption Amount Aggregation (CDT)
+
+
+- SUM_Redemption_Amount_CDT:
+  SELECT SUM(nvl(amount, 0)) + SUM(nvl(units, 0) * nvl(NAV, 0))
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '-');
+
+
+B.22: Redemption Amount Aggregation (Det_Trades)
+
+
+- SUM_Redemption_Amount_DET:
+  SELECT SUM(nvl(amount, 0))
+  FROM (SELECT nvl(SUM(plot_amount + total_tax), 0) amount
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '-')
+        UNION ALL
+        SELECT nvl(SUM(plot_amount + total_tax), 0) amount
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '-')
+          AND redeemed_flag = 'X');
+
+
+B.23: Current Transaction Redemption Amount (CDT)
+
+
+- Current_Trxn_Redemption_Amount_CDT:
+  SELECT round(nvl(cdt.amount, 0) + (nvl(cdt.units, 0) * nvl(NAV, 0)),
+               ss.decimal_amount)
+  FROM consolidated_daily_trades cdt, scheme_setup ss
+  WHERE cdt.scheme_code = ss.scheme_code
+    AND cdt.folio_no = Input.Folio_Number
+    AND cdt.scheme_code = Input.Scheme_Code
+    AND cdt.trade_date = Input.Trade_Date
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.user_code = Input.User_Code;
+
+
+B.24: Switch Out Queries (CDT)
+
+
+- SO_Scheme_Code_From_CDT:
+  SELECT scheme_code
+  FROM consolidated_daily_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+- SO_Trxn_Type_From_CDT:
+  SELECT trxn_type
+  FROM consolidated_daily_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+- SO_Units_From_CDT:
+  SELECT nvl(units, 0)
+  FROM consolidated_daily_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+- SO_Amount_From_CDT:
+  SELECT nvl(amount, 0)
+  FROM consolidated_daily_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+- SO_Trade_Date_From_CDT:
+  SELECT trunc(trade_date)
+  FROM consolidated_daily_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+
+B.25: Switch Out Queries (Det_Trades - fallback)
+
+
+- SO_Scheme_Code_From_DET:
+  SELECT scheme_code
+  FROM det_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code
+  GROUP BY scheme_code, folio_no, trxn_type, trxn_no, trunc(trade_date_time);
+
+- SO_Trxn_Type_From_DET:
+  SELECT trxn_type
+  FROM det_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code
+  GROUP BY scheme_code, folio_no, trxn_type, trxn_no, trunc(trade_date_time);
+
+- SO_Units_From_DET:
+  SELECT nvl(SUM(plot_units), 0)
+  FROM det_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code
+  GROUP BY scheme_code, folio_no, trxn_type, trxn_no, trunc(trade_date_time);
+
+- SO_Amount_From_DET:
+  SELECT nvl(SUM(plot_amount + total_tax), 0)
+  FROM det_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code
+  GROUP BY scheme_code, folio_no, trxn_type, trxn_no, trunc(trade_date_time);
+
+- SO_Trade_Date_From_DET:
+  SELECT trunc(trade_date_time)
+  FROM det_trades
+  WHERE trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_db_cr = CASE
+                       WHEN Input.Transaction_DB_CR = 'SI' THEN 'SO'
+                       ELSE 'TO'
+                     END)
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code
+  GROUP BY scheme_code, folio_no, trxn_type, trxn_no, trunc(trade_date_time);
+
+
+B.26: SO NAV Queries
+
+
+- SO_NAV_Primary:
+  SELECT nvl(nav, 0)
+  FROM nav_master
+  WHERE nav_date = SO_Trade_Date
+    AND scheme_code = SO_Scheme_Code
+    AND nav_serial = Input.NAV_Serial_No;
+
+- SO_NAV_Fallback:
+  Use function: get_nav_value(SO_Scheme_Code, SO_Trade_Date);
+
+- SO_Units_DET:
+  SELECT nvl(SUM(nvl(units, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades d
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = SO_Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = SO_Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.27: Purchase Amount Aggregation - Entry Date Based
+
+
+- SUM_Purchase_Amount_CDT_Entry_Date:
+  SELECT nvl(SUM(amount), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trunc(entry_date) = trunc(Input.Entry_Date)
+    AND source_program NOT LIKE CASE
+          WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+          ELSE '!@#$%^'
+        END
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '+'
+                       AND trxn_db_cr IN (SELECT *
+                                         FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))));
+
+
+B.28: Purchase Amount Aggregation - Trade Date Based
+
+
+- SUM_Purchase_Amount_CDT_Trade_Date:
+  SELECT nvl(SUM(amount), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND source_program NOT LIKE CASE
+          WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+          ELSE '!@#$%^'
+        END
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '+'
+                       AND trxn_db_cr IN (SELECT *
+                                         FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))));
+
+
+B.29: Purchase Amount from Det_Trades - Entry Date
+
+
+- SUM_Purchase_Amount_DET_Entry_Date:
+  SELECT nvl(SUM(nvl(amount, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.30: Purchase Amount from Det_Trades - Trade Date
+
+
+- SUM_Purchase_Amount_DET_Trade_Date:
+  SELECT nvl(SUM(nvl(amount, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.31: SO Amount from Det_Trades - Entry Date
+
+
+- SO_Amount_DET_Entry_Date:
+  SELECT nvl(SUM(nvl(amount, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades d
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.32: SO Amount from Det_Trades - Trade Date
+
+
+- SO_Amount_DET_Trade_Date:
+  SELECT nvl(SUM(nvl(amount, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_amount), 0) amount
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.33: Purchase Units Aggregation - Entry Date (CDT)
+
+
+- SUM_Purchase_Units_CDT_Entry_Date:
+  SELECT nvl(SUM(nvl(amount, 0) / NAV), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trunc(entry_date) = trunc(Input.Entry_Date)
+    AND source_program NOT LIKE CASE
+          WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+          ELSE '!@#$%^'
+        END
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '+'
+                       AND trxn_db_cr IN (SELECT *
+                                         FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+  GROUP BY folio_no, scheme_code, trade_date;
+
+
+B.34: Purchase Units Aggregation - Trade Date (CDT)
+
+
+- SUM_Purchase_Units_CDT_Trade_Date:
+  SELECT nvl(SUM(nvl(amount, 0) / NAV), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND source_program NOT LIKE CASE
+          WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+          ELSE '!@#$%^'
+        END
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '+'
+                       AND trxn_db_cr IN (SELECT *
+                                         FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+  GROUP BY folio_no, scheme_code, trade_date;
+
+
+B.35: Purchase Units Aggregation - Entry Date (DET)
+
+
+- SUM_Purchase_Units_DET_Entry_Date:
+  SELECT nvl(SUM(nvl(units, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trunc(entry_date) = trunc(Input.Entry_Date)
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.36: Purchase Units Aggregation - Trade Date (DET)
+
+
+- SUM_Purchase_Units_DET_Trade_Date:
+  SELECT nvl(SUM(nvl(units, 0)), 0)
+  FROM (SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+        UNION ALL
+        SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND source_program NOT LIKE CASE
+                WHEN INC_TRIG_TRXN_FOR_AGGRE_LIMIT = 'N' THEN 'Investrak%'
+                ELSE '!@#$%^'
+              END
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '+'
+                             AND trxn_db_cr IN (SELECT *
+                                               FROM TABLE(itn_plf_in_list(AGGREG_TRXN_DB_CR_FOR_LIMIT))))
+          AND redeemed_flag = 'X');
+
+
+B.37: Redemption Units Aggregation (CDT)
+
+
+- SUM_Redemption_Units_CDT:
+  SELECT nvl(SUM(nvl(amount, 0) / NAV) + SUM(nvl(units, 0)), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND trxn_type IN (SELECT trxn_type
+                     FROM transaction_types
+                     WHERE trxn_sign = '-');
+
+
+B.38: Redemption Units Aggregation (DET)
+
+
+- SUM_Redemption_Units_DET:
+  SELECT SUM(nvl(units, 0))
+  FROM (SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '-')
+        UNION ALL
+        SELECT nvl(SUM(plot_units), 0) units
+        FROM det_trades_deleted
+        WHERE folio_no = Input.Folio_Number
+          AND scheme_code = Input.Scheme_Code
+          AND trade_date_time = Input.Trade_Date
+          AND trxn_type IN (SELECT trxn_type
+                           FROM transaction_types
+                           WHERE trxn_sign = '-')
+          AND redeemed_flag = 'X');
+
+
+B.39: Current Redemption Units (CDT)
+
+
+- Current_Trxn_Redemption_Units_CDT:
+  SELECT nvl(nvl(amount, 0) / NAV + (nvl(units, 0)), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND trxn_type = Input.Transaction_Type
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+
+B.40: Current Purchase Amount (CDT)
+
+
+- Current_Purchase_Amount_CDT:
+  SELECT round(nvl(cdt.amount, 0) + (nvl(cdt.units, 0) * nvl(NAV, 0)),
+               ss.decimal_amount)
+  FROM consolidated_daily_trades cdt, scheme_setup ss
+  WHERE cdt.scheme_code = ss.scheme_code
+    AND cdt.folio_no = Input.Folio_Number
+    AND cdt.scheme_code = Input.Scheme_Code
+    AND cdt.trade_date = Input.Trade_Date
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.user_code = Input.User_Code;
+
+- Current_Purchase_Amount_IPO:
+  SELECT round(nvl(cdt.amount, 0) + (nvl(cdt.units, 0) * nvl(NAV, 0)),
+               ss.decimal_amount)
+  FROM ipo_trades cdt, scheme_setup ss
+  WHERE cdt.scheme_code = ss.scheme_code
+    AND cdt.folio_no = Input.Folio_Number
+    AND cdt.scheme_code = Input.Scheme_Code
+    AND cdt.trade_date = Input.Trade_Date
+    AND cdt.trxn_type = Input.Transaction_Type
+    AND cdt.user_trxnno = Input.User_Transaction_Number
+    AND cdt.user_code = Input.User_Code;
+
+
+B.41: Current Purchase Units (CDT)
+
+
+- Current_Purchase_Units_CDT:
+  SELECT nvl(nvl(amount, 0) / NAV + (nvl(units, 0)), 0)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND trxn_type = Input.Transaction_Type
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+- Current_Purchase_Units_IPO:
+  SELECT nvl(nvl(amount, 0) / NAV + (nvl(units, 0)), 0)
+  FROM ipo_trades
+  WHERE folio_no = Input.Folio_Number
+    AND scheme_code = Input.Scheme_Code
+    AND trade_date = Input.Trade_Date
+    AND trxn_type = Input.Transaction_Type
+    AND user_trxnno = Input.User_Transaction_Number
+    AND user_code = Input.User_Code;
+
+
+B.42: Broker Invest Limit
+
+
+- Broker_Invest_Limit:
+  SELECT nvl(broker_invest_limit, 0)
+  FROM scheme_limits
+  WHERE trxn_db_cr = Input.Transaction_DB_CR
+    AND scheme_code = Input.Scheme_Code;
+
+
+B.43: Accredited Investor Limit
+
+
+- Accredited_Inv_Limit:
+  SELECT nvl(accredited_inv_limit, 0)
+  FROM scheme_limits
+  WHERE trxn_db_cr = Input.Transaction_DB_CR
+    AND scheme_code = Input.Scheme_Code;
+
+
+B.44: Prospect Folio Count (for AMC Y)
+
+
+- Prospect_Folio_Count:
+  SELECT COUNT(1)
+  FROM prospect p
+  WHERE p.folio_no = Input.Folio_Number;
+
+- CDT_Folio_Count:
+  SELECT COUNT(1)
+  FROM consolidated_daily_trades
+  WHERE folio_no = Input.Folio_Number;
+
+
+B.45: Units Amount Flag Determination Fields
+
+
+- Transaction_DB_CR_Type:
+  SELECT trxn_db_cr
+  FROM transaction_types
+  WHERE trxn_type = Input.Transaction_Type;
+
+
+
+
+
+B.16: Additional Variables - SIF, Carting, and Prospect Handling
+
+
+- ALLOW_CARTING_ONLINE_SIF_FLAG:
+  SELECT key_value
+  FROM application_parameters
+  WHERE key_name = 'ALLOW_CARTING_ONLINE_SIF';
+
+- OTHER_AMC_PARAMETER:
+  SELECT nvl(key_value, 'N')
+  FROM application_parameters
+  WHERE key_name = 'OTHER_AMC';
+
+- SIF_Folio_Exists_Count:
+  IF (OTHER_AMC_PARAMETER = 'SIF' AND Minor_Flag IS NOT NULL) {
+    SELECT COUNT(DISTINCT CASE
+                            WHEN Minor_Flag = 'Y' THEN im.pan
+                            ELSE im.subfund
+                          END)
+    FROM investor_master im,
+         investor_plan ip,
+         scheme_setup ss
+    WHERE im.folio_no = ip.folio_no
+      AND ip.scheme_code = ss.scheme_code
+      AND im.folio_no = Input.Folio_Number
+      AND ss.parent_subfund = Input.Parent_Sub_Fund_Code
+      AND ip.current_units > 0
+    UNION
+    SELECT COUNT(DISTINCT CASE
+                            WHEN Minor_Flag = 'Y' THEN jh.pan
+                            ELSE jh.subfund
+                          END)
+    FROM joint_holders jh,
+         investor_plan ip,
+         scheme_setup ss
+    WHERE jh.folio_no = ip.folio_no
+      AND ip.scheme_code = ss.scheme_code
+      AND jh.folio_no = Input.Folio_Number
+      AND ss.parent_subfund = Input.Parent_Sub_Fund_Code
+      AND ip.current_units > 0;
+  } ELSE {
+    Set 0;
+  }
+
+- Accredited_Investor_Limit:
+  IF (Accredited_Investor_Flag = 'Y' 
+      AND OTHER_AMC_PARAMETER = 'SIF' 
+      AND SIF_Folio_Exists_Count = 0) {
+    SELECT nvl(accredited_inv_limit, 0)
+    FROM scheme_limits
+    WHERE scheme_code = Input.Scheme_Code;
+  } ELSE {
+    Set 0;
+  }
+
+- Cart_Reference_Number:
+  IF (ALLOW_CARTING_ONLINE_SIF_FLAG = 'Y') {
+    SELECT cart_ref_no
+    FROM consolidated_daily_trades
+    WHERE user_code = Input.User_Code
+      AND user_trxnno = Input.User_Transaction_Number
+      AND trxn_type = Input.Transaction_Type;
+  } ELSE {
+    Set NULL;
+  }
+
+- Online_User_Flag:
+  SELECT online_user
+  FROM user_master
+  WHERE user_id = Input.User_Code;
+
+- Prospect_Folio_Count:
+  IF (AMC_Code = 'Y' AND Input.Transaction_Type = 'P') {
+    SELECT COUNT(1)
+    FROM prospect
+    WHERE folio_no = Input.Folio_Number;
+  } ELSE {
+    Set 0;
+  }
+
+- CDT_Count_For_Prospect:
+  IF (Prospect_Folio_Count > 0) {
+    SELECT COUNT(1)
+    FROM consolidated_daily_trades
+    WHERE folio_no = Input.Folio_Number;
+  } ELSE {
+    Set 0;
+  }
+
+
+HIERARCHICAL LIMIT FETCHING VARIABLES
+
+
+- REC_INSURANCE_LIMIT:
+  SELECT *
+  FROM insurance_scheme_limits
+  WHERE scheme_code = Input.Scheme_Code
+  AND frequency = Input.Periodicity
+  AND insurance_id = Input.Insurance_ID
+  AND trxn_head = Input.Transaction_Type;
+
+- REC_SYS_HISTORY_LIMIT:
+  SELECT *
+  FROM sys_scheme_limits_history sslh
+  WHERE sslh.scheme_code = Input.Scheme_Code
+  AND sslh.frequency = Input.Periodicity
+  AND sslh.sys_flag = Systematic_Transaction_Type
+  AND NVL(sslh.swap_option, 'N') = NVL(Swap_Option, 'N')
+  AND NVL(Auto_Amount, 0) BETWEEN NVL(sslh.installment_from_amount, 0)
+                          AND NVL(sslh.installment_to_amount, 9e18)
+  AND Effective_Date BETWEEN sslh.effective_from_date
+                     AND sslh.effective_to_date;
+
+- REC_SYS_LIMIT:
+  SELECT *
+  FROM sys_scheme_limits
+  WHERE scheme_code = Input.Scheme_Code
+  AND frequency = Input.Periodicity
+  AND sys_flag = Systematic_Transaction_Type
+  AND NVL(swap_option, 'N') = NVL(Swap_Option, 'N')
+  AND (Auto_Amount IS NULL
+       OR NVL(Auto_Amount, 0) BETWEEN NVL(installment_from_amount, 0)
+                              AND NVL(installment_to_amount, 0));
+
+- REC_SCHEME_HIST_LIMIT:
+  SELECT *
+  FROM scheme_limits_history
+  WHERE scheme_code = Input.Scheme_Code
+  AND trxn_db_cr = Input.Transaction_Type
+  AND Effective_Date BETWEEN from_date AND to_date;
+
+- REC_SCHEME_LIMIT:
+  SELECT *
+  FROM scheme_limits
+  WHERE scheme_code = Input.Scheme_Code
+  AND trxn_db_cr = Input.Transaction_Type;
+
+- REC_SUBFUND_HISTORY_LIMIT:
+  SELECT *
+  FROM scheme_limits_history
+  WHERE scheme_code = Input.Parent_Sub_Fund_Code
+  AND trxn_db_cr = Input.Transaction_Type
+  AND Effective_Date BETWEEN from_date AND to_date;
+
+- REC_SUBFUND_SCHEME_LIMIT:
+  SELECT *
+  FROM scheme_limits
+  WHERE scheme_code = Input.Parent_Sub_Fund_Code
+  AND trxn_db_cr = Input.Transaction_Type;
+
+- AGGR_UNITS:
+  NVL((
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades_history
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades_deleted
+    WHERE folio_no = Input.Folio_Number
+    AND redeemed_flag = 'X'
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+  ), 0);
+
+- AGGR_AMOUNT:
+  NVL((
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades_history
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades_deleted
+    WHERE folio_no = Input.Folio_Number
+    AND redeemed_flag = 'X'
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+  ), 0);
+
+- AGGR_CLOSING_BAL:
+  NVL((
+    SELECT NVL(SUM(closing_balance), 0)
+    FROM scheme_controls
+    WHERE scheme_code IN (SELECT scheme_code FROM scheme_setup
+                          WHERE parent_sub_fund_code = Input.Parent_Sub_Fund_Code)
+  ), 0);
+
+- PARENT_FUND_CODE:
+  SELECT NVL(parent_fund_code, ' ')
+  FROM scheme_master
+  WHERE scheme_code = Input.Scheme_Code;
+
+- FUND_AGGREGATE_FLAG:
+  SELECT NVL(aggregate_flag, 'N')
+  FROM scheme_master
+  WHERE scheme_code = Parent_Fund_Code;
+
+- REC_FUND_HISTORY_LIMIT:
+  SELECT *
+  FROM scheme_limits_history
+  WHERE scheme_code = Parent_Fund_Code
+  AND trxn_db_cr = Input.Transaction_Type
+  AND Effective_Date BETWEEN from_date AND to_date;
+
+- REC_FUND_LIMIT:
+  SELECT *
+  FROM scheme_limits
+  WHERE scheme_code = Parent_Fund_Code
+  AND trxn_db_cr = Input.Transaction_Type;
+
+- FUND_AGGR_UNITS:
+  NVL((
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades_history
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_units), 0)
+    FROM det_trades_deleted
+    WHERE folio_no = Input.Folio_Number
+    AND redeemed_flag = 'X'
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+  ), 0);
+
+- FUND_AGGR_AMOUNT:
+  NVL((
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades_history
+    WHERE folio_no = Input.Folio_Number
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+    UNION ALL
+    SELECT NVL(SUM(plot_amount), 0)
+    FROM det_trades_deleted
+    WHERE folio_no = Input.Folio_Number
+    AND redeemed_flag = 'X'
+    AND scheme_code IN (SELECT scheme_code FROM scheme_setup
+                        WHERE parent_fund_code = Parent_Fund_Code)
+  ), 0);
+
+- FUND_AGGR_CLOSING_BAL:
+  NVL((
+    SELECT NVL(SUM(closing_balance), 0)
+    FROM scheme_controls
+    WHERE scheme_code IN (SELECT scheme_code FROM scheme_setup
+                          WHERE parent_fund_code = Parent_Fund_Code)
+  ), 0);
+
+- Chan_Exg_Reg_Date (channel/exchange registration date): 
+                   NVL(Input.Guardian_Date_Of_Birth, Input.Entry_Date)
+- Swap_Option:
+                                              CASE
+                                                   WHEN nvl(Variables.User_Type, 'XYZ') = 'EXG' AND
+                                                        Input.source_program = 'TRIGGERS' THEN 
+                                                    'X'
+                                                   WHEN nvl(Variables.User_Type, 'XYZ') <> 'EXG' AND
+                                                        Input.source_program IN ('CHANNEL', 'MFU') THEN
+                                                     'H'  
+													 
+													 
+													 
+													 
+Rule:
+
+1.1: Determine Auto_Trxn_No
+
+
+IF (Input.IPO_CDT_Flag = 'C') {
+  Auto_Trxn_No = Auto_Trxn_No_From_CDT;
+} ELSE {
+  Auto_Trxn_No = NULL;
+}
+
+
+1.2: Determine Link_Scheme_Code
+
+
+IF (Input.Link_Scheme_Code IS NULL) {
+  Link_Scheme_Code = Link_Scheme_Code_Raw;
+} ELSE {
+  Link_Scheme_Code = Input.Link_Scheme_Code;
+}
+
+
+1.3: Compute Units_Amount_Flag
+
+
+IF (Input.NAV <> -1
+    AND nvl(Segregated_Scheme_Flag, 'N') = 'N'
+    AND nvl(Input.NAV, 0) <> 0) {
+
+  IF (Input.Units IS NOT NULL AND Input.Units <> 0) {
+    IF (Transaction_DB_CR_Type IN ('DP', 'DR')) {
+      Units_Amount_Flag = 'A';
+    } ELSE {
+      Units_Amount_Flag = 'U';
+    }
+  } ELSIF (Input.Amount IS NOT NULL AND Input.Amount <> 0) {
+    Units_Amount_Flag = 'A';
+  } ELSE {
+    Units_Amount_Flag = NULL;
+  }
+
+} ELSE {
+  Units_Amount_Flag = NULL;
+}
+
+
+1.4: Compute Sub_Trxn_Type (derived transaction type)
+
+
+IF (Input.Transaction_DB_CR = 'P' AND Input.Sub_Transaction_Type = 'M') {
+  Sub_Trxn_Type = 'M';
+} ELSIF ((Input.Transaction_DB_CR = 'P' AND Input.Transaction_Nature = 'S')
+        OR Input.Sub_Transaction_Type = 'S'
+        OR Input.Transaction_Nature = 'S'
+        OR Input.Sub_Transaction_Type = 'U'
+        OR IS_SYSTEMATIC_PLAN_Temp = 'Y') {
+  Sub_Trxn_Type = 'S';
+} ELSIF (Input.Sub_Transaction_Type = 'A') {
+  Sub_Trxn_Type = 'A';
+} ELSE {
+  Sub_Trxn_Type = 'N';
+}
+
+
+1.5: Compute New_Purchase_Type_Flag
+
+
+IF (Input.New_Purch_Typ_Flag IS NULL) {
+  IF (New_Purchase_Type_Flag_Count > 0) {
+    New_Purchase_Type_Flag = 'N';
+  } ELSE {
+    New_Purchase_Type_Flag = 'Y';
+  }
+} ELSE {
+  New_Purchase_Type_Flag = Input.New_Purch_Typ_Flag;
+}
+
+-- Special override for AMC Y with prospect folio
+IF (Input.AMC_Code = 'Y'
+    AND Input.Transaction_DB_CR = 'P'
+    AND Input.Folio_Number IS NOT NULL
+    AND nvl(New_Purchase_Type_Flag, 'N') = 'Y'
+    AND nvl(Input.Post_Validate_Flag, 'V') <> 'P') {
+
+  IF (Prospect_Folio_Count > 0) {
+    IF (CDT_Folio_Count > 0) {
+      New_Purchase_Type_Flag = 'N';
+    }
+  }
+}
+
+
+1.6: Compute AGGREG_TRXN_DB_CR_FOR_LIMIT
+
+
+IF (AGGREG_TRXN_DB_CR_FOR_LIMIT IS NULL) {
+  AGGREG_TRXN_DB_CR_FOR_LIMIT = AGGREG_TRXN_DB_CR_List;
+} ELSE {
+  IF (DB_CR_COUNT = 1 AND TRIM(AGGREG_TRXN_DB_CR_FOR_LIMIT) <> Input.Transaction_DB_CR) {
+    AGGREG_PLUS_TX_FOR_LIMIT_CHECK = 'N';
+  }
+}
+
+
+1.7: Compute Swap_Option and Frequency for Systematic Txns
+
+
+IF (Input.IPO_CDT_Flag = 'C'
+    AND (Input.Transaction_Nature = 'S' OR IS_SYSTEMATIC_PLAN = 'Y')
+    AND Auto_Trxn_No IS NOT NULL) {
+
+  IF (Input.Transaction_DB_CR IN ('SO', 'P')) {
+    Swap_Option = Swap_Option_SO_Scheme;
+    Frequency = Frequency_SO_Scheme;
+    Auto_Amount = Auto_Amount_SO_Scheme;
+  } ELSE {
+    Swap_Option = Swap_Option_SI_Scheme;
+    Frequency = Frequency_SI_Scheme;
+    Auto_Amount = Auto_Amount_SI_Scheme;
+  }
+
+} ELSIF (Input.AMC_Code IN ('B', 'F') AND Input.Insurance_ID IS NOT NULL) {
+  Frequency = 'LM';
+  Swap_Option = NULL;
+  Auto_Amount = NULL;
+
+  -- Special handling for insurance ID 1003
+  IF ((Input.Transaction_Nature = 'S' OR IS_SYSTEMATIC_PLAN = 'Y')
+      AND Input.Insurance_ID = '1003'
+      AND Auto_Trxn_No IS NULL) {
+    Frequency = NVL(CdT_Trades_SIP_Periodicity, 'OM');
+  }
+} ELSE {
+  Swap_Option = NULL;
+  Frequency = NULL;
+  Auto_Amount = NULL;
+}
+
+-- Override for Pre-Validation with SIP parameters
+IF (Input.Post_Validate_Flag = 'P'
+    AND (Input.Transaction_Nature = 'S' OR IS_SYSTEMATIC_PLAN = 'Y')
+    AND ((Input.Transaction_DB_CR = 'P') OR (Input.Transaction_DB_CR IN ('SO', 'SI')))
+    AND Auto_Trxn_No IS NULL
+    AND Input.Swap_Option IS NOT NULL
+    AND Frequency IS NULL
+    AND Swap_Option IS NULL
+    AND Auto_Amount IS NULL) {
+
+  Frequency = Input.Periodicity;
+  Auto_Amount = Input.Auto_Amount;
+  Swap_Option = Input.Swap_Option;
+}
+
+
+1.8: Compute SYS_REG_DATE (systematic registration date)
+
+
+IF (Sub_Trxn_Type = 'S') {
+  IF (SYS_VALIDATE = 'T') {
+    SYS_REG_DATE = NULL;
+  } ELSIF (SYS_VALIDATE = 'R') {
+    IF (Input.SIP_Registration_Date IS NOT NULL) {
+      SYS_REG_DATE = Input.SIP_Registration_Date;
+    } ELSE {
+      SYS_REG_DATE = Input.GDate_Of_Birth;
+    }
+
+    -- Override for pre-validation
+    IF (Input.Post_Validate_Flag = 'P'
+        AND Variables.Chan_Exg_Reg_Date IS NOT NULL) {
+      SYS_REG_DATE = Variables.Chan_Exg_Reg_Date;
+    }
+  } ELSE {
+    SYS_REG_DATE = NULL;
+  }
+} ELSE {
+  SYS_REG_DATE = NULL;
+}
+
+
+1.9: Compute EFFECTIVE_DATE
+
+
+EFFECTIVE_DATE = NVL(SYS_REG_DATE, Input.Trade_Date);
+
+
+1.10: Determine APPLY_LIMITS
+
+
+APPLY_LIMITS = Apply_Limits_From_Master;
+
+-- Override to 'X' for specific scenarios
+
+-- Systematic with swap option T or Q
+IF ((Input.Transaction_Nature = 'S' OR IS_SYSTEMATIC_PLAN = 'Y')
+    AND Auto_Trxn_No IS NOT NULL
+    AND Source_Program LIKE 'Investrak%') {
+  IF (Input.Transaction_DB_CR = 'SO') {
+    IF (Swap_Option IN ('T', 'Q')) {
+      APPLY_LIMITS = 'X';
+    }
+  }
+}
+
+-- Insurance ID 1003 for SO/SI
+IF (Input.AMC_Code IN ('B', 'F')
+    AND nvl(Input.Insurance_ID, 0) = 1003
+    AND Input.Transaction_DB_CR IN ('SO', 'SI')) {
+  APPLY_LIMITS = 'X';
+}
+
+-- EXG user type with DP ID
+IF (Input.AMC_Code = 'L'
+    AND User_Type = 'EXG'
+    AND DP_ID_REQUIRED = 'Y'
+    AND Input.Transaction_DB_CR IN ('R', 'SO')) {
+  APPLY_LIMITS = 'X';
+}
+
+-- Employee/Company folio
+IF (Input.AMC_Code = 'B' AND Input.Folio_Exists = TRUE) {
+  IF (Employee_Or_Company_Folio_Exists > 0) {
+    APPLY_LIMITS = 'X';
+  }
+}
+
+-- AMC G switch transactions
+IF (Input.AMC_Code = 'G' AND Input.Transaction_Type IN ('SOCO', 'SOCO1', 'SICO', 'SICO1')) {
+  APPLY_LIMITS = 'X';
+}
+
+-- Mother name BOSTP/VLSIP
+IF (Mother_Name IN ('BOSTP', 'VLSIP')) {
+  APPLY_LIMITS = 'X';
+}
+
+-- Smart STP package
+IF (Input.AMC_Code = 'O' AND Package_Name_From_CDT IS NOT NULL) {
+  IF (Smart_STP_Package_Exists > 0) {
+    APPLY_LIMITS = 'X';
+  }
+}
+
+-- Key employee investment
+IF (nvl(Application_No_From_CDT, 'N') = 'KEYEMPINVST') {
+  IF (Key_Employee_Folio_Exists > 0) {
+    APPLY_LIMITS = 'X';
+  }
+}
+
+-- AMC B with ALLOW_LUMPSUM_ONLY_FOR_KMP
+IF (Input.AMC_Code = 'B'
+    AND Input.Transaction_DB_CR = 'P'
+    AND ALLOW_LUMPSUM_ONLY_FOR_KMP = 'Y') {
+  IF (Key_Employee_Folio_Exists > 0) {
+    APPLY_LIMITS = 'X';
+  }
+}
+
+
+1.11: Compute Switch Out Variables
+
+
+IF (Input.Transaction_DB_CR IN ('SI', 'TI') AND Input.Folio_Exists = TRUE) {
+
+  -- Try CDT first
+  IF (SO_Scheme_Code_From_CDT IS NOT NULL) {
+    SO_Scheme_Code = SO_Scheme_Code_From_CDT;
+    SO_Trxn_Type = SO_Trxn_Type_From_CDT;
+    SO_Units = SO_Units_From_CDT;
+    SO_Amount = SO_Amount_From_CDT;
+    SO_Trade_Date = SO_Trade_Date_From_CDT;
+  } ELSE {
+    -- Fallback to Det_Trades
+    SO_Scheme_Code = SO_Scheme_Code_From_DET;
+    SO_Trxn_Type = SO_Trxn_Type_From_DET;
+    SO_Units = SO_Units_From_DET;
+    SO_Amount = SO_Amount_From_DET;
+    SO_Trade_Date = SO_Trade_Date_From_DET;
+  }
+
+  -- Get SO NAV
+  IF (SO_NAV_Primary IS NOT NULL) {
+    SO_NAV = SO_NAV_Primary;
+  } ELSE {
+    SO_NAV = SO_NAV_Fallback;  -- function call
+  }
+
+} ELSE {
+  SO_Scheme_Code = NULL;
+  SO_Trxn_Type = NULL;
+  SO_Units = 0;
+  SO_Amount = 0;
+  SO_Trade_Date = NULL;
+  SO_NAV = 0;
+}
+
+
+1.12: Compute SO Amount from Det_Trades
+
+
+IF (AGGREG_DATE_FLAG_FOR_LIMIT = 'E') {
+  SO_Amount_DET = NVL(SO_Amount_DET_Entry_Date, 0);
+} ELSE {
+  SO_Amount_DET = NVL(SO_Amount_DET_Trade_Date, 0);
+}
+
+
+1.13: Compute Redemption Amounts
+
+
+IF (Input.Folio_Exists = TRUE) {
+  SUM_Redemption_Amt_CDT = NVL(SUM_Redemption_Amount_CDT, 0);
+  SUM_Redemption_Amt_DET = NVL(SUM_Redemption_Amount_DET, 0);
+} ELSE {
+  SUM_Redemption_Amt_CDT = NVL(Input.Amount, 0);
+  SUM_Redemption_Amt_DET = 0;
+}
+
+
+1.14: Compute Current Redemption Amount
+
+
+IF (Input.Folio_Exists = TRUE) {
+  Current_Redemption_Amt = NVL(Current_Trxn_Redemption_Amount_CDT, 0);
+} ELSE {
+  Current_Redemption_Amt = NVL(Input.Amount, 0);
+}
+
+
+1.15: Compute Purchase Amounts (existing folio)
+
+
+IF (Input.Folio_Exists = TRUE AND New_Purchase_Type_Flag = 'N') {
+
+  IF (Input.Transaction_DB_CR IN ('TI', 'SI')) {
+    SUM_Purchase_Amt_CDT = NVL(SO_Amount, 0);
+    SUM_Purchase_Amt_DET = NVL(SO_Amount_DET, 0);
+  } ELSE {
+    IF (AGGREG_DATE_FLAG_FOR_LIMIT = 'E') {
+      SUM_Purchase_Amt_CDT = NVL(SUM_Purchase_Amount_CDT_Entry_Date, 0);
+      SUM_Purchase_Amt_DET = NVL(SUM_Purchase_Amount_DET_Entry_Date, 0);
+    } ELSE {
+      SUM_Purchase_Amt_CDT = NVL(SUM_Purchase_Amount_CDT_Trade_Date, 0);
+      SUM_Purchase_Amt_DET = NVL(SUM_Purchase_Amount_DET_Trade_Date, 0);
+    }
+
+    -- Add SIP pre-validation amount
+    IF (nvl(SUM_Purchase_Amt_CDT, 0) > 0 AND Input.IPO_CDT_Flag = 'S') {
+      SUM_Purchase_Amt_CDT = SUM_Purchase_Amt_CDT + nvl(Input.Amount, 0);
+    }
+
+    -- Fallback to input amount if CDT is zero
+    IF (nvl(SUM_Purchase_Amt_CDT, 0) = 0) {
+      SUM_Purchase_Amt_CDT = nvl(Input.Amount, 0);
+    }
+  }
+
+} ELSE {
+  -- New purchase
+  SUM_Purchase_Amt_CDT = nvl(Input.Amount, 0);
+  SUM_Purchase_Amt_DET = 0;
+}
+
+-- Override for non-aggregating configuration
+IF (AGGREG_PLUS_TX_FOR_LIMIT_CHECK = 'N') {
+  SUM_Purchase_Amt_CDT = nvl(Input.Amount, 0);
+  SUM_Purchase_Amt_DET = 0;
+}
+
+
+1.16: Compute Current Purchase Amount
+
+
+IF (Input.Folio_Exists = TRUE) {
+
+  IF (Input.Transaction_DB_CR IN ('SI', 'TI')) {
+    IF (Input.Post_Validate_Flag = 'P') {
+      Current_Purchase_Amt = nvl(Input.Amount, 0);
+    } ELSE {
+      Current_Purchase_Amt = round(nvl(SO_Amount, 0) + (nvl(SO_Units, 0) * nvl(SO_NAV, 0)),
+                                  nvl(Input.Decimal_Amount, 0));
+    }
+  } ELSE {
+    IF (Input.IPO_CDT_Flag = 'C') {
+      Current_Purchase_Amt = NVL(Current_Purchase_Amount_CDT, nvl(Input.Amount, 0));
+    } ELSIF (Input.IPO_CDT_Flag = 'I') {
+      Current_Purchase_Amt = NVL(Current_Purchase_Amount_IPO,
+                                round(nvl(Input.Amount, 0) + (nvl(Input.Units, 0) * nvl(NAV, 0)),
+                                     Input.Decimal_Amount));
+    } ELSIF (Input.IPO_CDT_Flag = 'S') {
+      Current_Purchase_Amt = nvl(Input.Amount, 0);
+    }
+  }
+
+} ELSE {
+  Current_Purchase_Amt = nvl(Input.Amount, 0);
+}
+
+
+1.17: Compute Purchase Units (existing folio)
+
+
+SUM_Purchase_Units_CDT = 0;
+SUM_Purchase_Units_DET = 0;
+
+IF (Input.Folio_Exists = TRUE AND New_Purchase_Type_Flag = 'N') {
+
+  IF (Input.Transaction_DB_CR IN ('SI', 'TI')) {
+    IF (SO_Units IS NOT NULL AND nvl(SO_Units, 0) > 0) {
+      SUM_Purchase_Units_CDT = nvl(((SO_Units * SO_NAV) / NAV), 0);
+    } ELSIF (SO_Amount IS NOT NULL AND SO_Amount > 0) {
+      SUM_Purchase_Units_CDT = nvl((SO_Amount / NAV), 0);
+    } ELSIF (SO_Units_DET IS NOT NULL AND SO_Units_DET > 0) {
+      SUM_Purchase_Units_DET = nvl(((SO_Units_DET * SO_NAV) / NAV), 0);
+    } ELSIF (SO_Amount_DET IS NOT NULL AND SO_Amount_DET > 0) {
+      SUM_Purchase_Units_DET = nvl((SO_Amount_DET / NAV), 0);
+    }
+  } ELSE {
+    IF (AGGREG_DATE_FLAG_FOR_LIMIT = 'E') {
+      SUM_Purchase_Units_CDT = NVL(SUM_Purchase_Units_CDT_Entry_Date, 0);
+      SUM_Purchase_Units_DET = NVL(SUM_Purchase_Units_DET_Entry_Date, 0);
+    } ELSE {
+      SUM_Purchase_Units_CDT = NVL(SUM_Purchase_Units_CDT_Trade_Date, 0);
+      SUM_Purchase_Units_DET = NVL(SUM_Purchase_Units_DET_Trade_Date, 0);
+    }
+  }
+
+  -- Add SIP pre-validation units
+  IF (Input.IPO_CDT_Flag = 'S') {
+    IF (nvl(SUM_Purchase_Units_CDT, 0) > 0) {
+      SUM_Purchase_Units_CDT = SUM_Purchase_Units_CDT + nvl(nvl(Input.Amount, 0) / NAV, 0);
+    } ELSE {
+      SUM_Purchase_Units_CDT = nvl(nvl(Input.Amount, 0) / NAV, 0);
+    }
+  }
+
+} ELSE {
+  -- New purchase
+  IF (Input.Transaction_DB_CR IN ('TI')) {
+    SUM_Purchase_Units_CDT = nvl(SO_Units, 0);
+  } ELSE {
+    SUM_Purchase_Units_CDT = nvl(Input.Amount, 0);
+  }
+  SUM_Purchase_Units_DET = 0;
+}
+
+-- Override for non-aggregating configuration
+IF (AGGREG_PLUS_TX_FOR_LIMIT_CHECK = 'N') {
+  SUM_Purchase_Units_CDT = nvl(Input.Amount, 0);
+  SUM_Purchase_Units_DET = 0;
+}
+
+
+1.18: Compute Current Purchase Units
+
+
+IF (Input.Folio_Exists = TRUE) {
+
+  IF (Input.Transaction_DB_CR IN ('SI', 'TI')) {
+    Current_Purchase_Units = nvl(nvl(SO_Amount, 0) / NAV + (nvl((nvl(SO_Units, 0) * nvl(SO_NAV, 0)) / NAV, 0)), 0);
+  } ELSE {
+    IF (Input.IPO_CDT_Flag = 'C') {
+      Current_Purchase_Units = NVL(Current_Purchase_Units_CDT, 0);
+    } ELSIF (Input.IPO_CDT_Flag = 'I') {
+      Current_Purchase_Units = NVL(Current_Purchase_Units_IPO, 0);
+    } ELSIF (Input.IPO_CDT_Flag = 'S') {
+      Current_Purchase_Units = nvl(nvl(Input.Amount, 0) / NAV + (nvl(Input.Units, 0)), 0);
+    }
+  }
+
+} ELSE {
+  IF (Input.Transaction_DB_CR IN ('TI')) {
+    Current_Purchase_Units = nvl(SO_Units, 0);
+  } ELSE {
+    Current_Purchase_Units = nvl(Input.Amount, 0);
+  }
+}
+
+
+1.19: Compute Redemption Units
+
+
+IF (Input.Folio_Exists = TRUE) {
+  SUM_Redemption_Units_CDT = NVL(SUM_Redemption_Units_CDT, 0);
+  SUM_Redemption_Units_DET = NVL(SUM_Redemption_Units_DET, 0);
+  Current_Redemption_Units = NVL(Current_Trxn_Redemption_Units_CDT, 0);
+} ELSE {
+  SUM_Redemption_Units_CDT = nvl(Input.Amount, 0);
+  SUM_Redemption_Units_DET = 0;
+  Current_Redemption_Units = nvl(Input.Amount, 0);
+}
+
+
+1.20: Determine Investor Plan Exists
+
+
+IF (SUB_FUND_AGGREGATE_FLAG = 'Y') {
+  IF (Investor_Plan_Exists_SubFund > 0) {
+    Investor_Plan_Exists = TRUE;
+  } ELSE {
+    Investor_Plan_Exists = FALSE;
+  }
+} ELSE {
+  IF (Investor_Plan_Exists_Scheme > 0) {
+    Investor_Plan_Exists = TRUE;
+  } ELSE {
+    Investor_Plan_Exists = FALSE;
+  }
+}
+
+
+1.20: Hierarchical Limit Fetching (plp_schfundsfund_trxn_limit Logic)
+
+
+This section implements the complete hierarchical limit fetching logic
+with 5 priority levels: Insurance → Systematic History → Systematic Current
+→ Scheme History/Current → Sub-fund → Fund
+
+-- Priority 1: Insurance limits (AMC='B'/'F' with insurance_id)
+IF (Input.Insurance_ID IS NOT NULL
+    AND AMC_Code IN ('B', 'F')
+    AND REC_INSURANCE_LIMIT IS NOT NULL) {
+
+  -- Assign limit values from REC_INSURANCE_LIMIT:
+  MIN_VALUE = NVL(REC_INSURANCE_LIMIT.min_value, 0);
+  MAX_VALUE = NVL(REC_INSURANCE_LIMIT.max_value, 0);
+  NEW_MIN_VALUE = MIN_VALUE;
+  NEW_MAX_VALUE = MAX_VALUE;
+  MULTIPLES = NVL(REC_INSURANCE_LIMIT.multiples, 0);
+  MIN_UNITS = NVL(REC_INSURANCE_LIMIT.min_units, 0);
+  MAX_UNITS = NVL(REC_INSURANCE_LIMIT.max_units, 0);
+  MAX_PERC = NVL(REC_INSURANCE_LIMIT.max_perc, 0);
+  AGGR_UNITS = 0;
+  AGGR_AMOUNT = 0;
+  AGGR_CLOSING_BAL = 0;
+  INCLUDE_CURRENT_BALANCE = 'N';
+  SCH_FUND_SUBFUND = 'S';
+
+  -- Insurance limits found; skip other hierarchy levels
+  GOTO LIMITS_FETCHED;
+}
+
+-- Priority 2: Systematic limits (frequency present and sub-trxn-type is systematic)
+IF (Input.Periodicity IS NOT NULL
+    AND Input.Insurance_ID IS NULL
+    AND Transaction_Nature = 'S') {
+
+  -- Try history first
+  IF (REC_SYS_HISTORY_LIMIT IS NOT NULL) {
+    MIN_VALUE = NVL(REC_SYS_HISTORY_LIMIT.min_value, 0);
+    MAX_VALUE = NVL(REC_SYS_HISTORY_LIMIT.max_value, 0);
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+    MULTIPLES = NVL(REC_SYS_HISTORY_LIMIT.multiples, 0);
+    MIN_UNITS = NVL(REC_SYS_HISTORY_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_SYS_HISTORY_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_SYS_HISTORY_LIMIT.max_perc, 0);
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'S';
+
+    GOTO LIMITS_FETCHED;
+  }
+
+  -- Fallback to current sys_scheme_limits
+  IF (REC_SYS_LIMIT IS NOT NULL) {
+    MIN_VALUE = NVL(REC_SYS_LIMIT.min_value, 0);
+    MAX_VALUE = NVL(REC_SYS_LIMIT.max_value, 0);
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+    MULTIPLES = NVL(REC_SYS_LIMIT.multiples, 0);
+    MIN_UNITS = NVL(REC_SYS_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_SYS_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_SYS_LIMIT.max_perc, 0);
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'S';
+
+    GOTO LIMITS_FETCHED;
+  }
+}
+
+-- Priority 3: Scheme-level limits (history first, then current)
+IF (REC_SCHEME_HIST_LIMIT IS NOT NULL) {
+  -- Assign base pack:
+  MAX_VALUE = NVL(REC_SCHEME_HIST_LIMIT.max_value, 0);
+  MIN_VALUE = NVL(REC_SCHEME_HIST_LIMIT.min_value, 0);
+  MIN_UNITS = NVL(REC_SCHEME_HIST_LIMIT.min_units, 0);
+  MAX_UNITS = NVL(REC_SCHEME_HIST_LIMIT.max_units, 0);
+  MAX_PERC = NVL(REC_SCHEME_HIST_LIMIT.max_perc, 0);
+
+  IF (Sub_Trxn_Type = 'S') {
+    MULTIPLES = NVL(REC_SCHEME_HIST_LIMIT.sip_multiples, 0);
+  } ELSE {
+    MULTIPLES = NVL(REC_SCHEME_HIST_LIMIT.multiples, 0);
+  }
+
+  NEW_MIN_VALUE = NVL(REC_SCHEME_HIST_LIMIT.new_purch_minvalue, 0);
+  NEW_MAX_VALUE = NVL(REC_SCHEME_HIST_LIMIT.new_purch_maxvalue, 0);
+
+  -- Systematic detail fields
+  MIN_SWP_AMOUNT = NVL(REC_SCHEME_HIST_LIMIT.min_swp_amount, 0);
+  MAX_SWP_AMOUNT = NVL(REC_SCHEME_HIST_LIMIT.max_swp_amount, 0);
+  MICRO_SIP_MINIMUM = NVL(REC_SCHEME_HIST_LIMIT.micro_sip_minimum, 0);
+  MICRO_SIP_MAXIMUM = NVL(REC_SCHEME_HIST_LIMIT.micro_sip_maximum, 0);
+  MIN_SYS_UNITS = NVL(REC_SCHEME_HIST_LIMIT.min_sys_units, 0);
+  MAX_SYS_UNITS = NVL(REC_SCHEME_HIST_LIMIT.max_sys_units, 0);
+
+  INCLUDE_CURRENT_BALANCE = NVL(REC_SCHEME_HIST_LIMIT.include_current_balance, 'N');
+
+  -- Apply systematic overrides
+  IF (Sub_Trxn_Type = 'M') {
+    MIN_VALUE = MICRO_SIP_MINIMUM;
+    MAX_VALUE = MICRO_SIP_MAXIMUM;
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+  } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+    MIN_VALUE = MIN_SWP_AMOUNT;
+    MAX_VALUE = MAX_SWP_AMOUNT;
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+
+    IF (Sub_Trxn_Type = 'S') {
+      MIN_UNITS = MIN_SYS_UNITS;
+      MAX_UNITS = MAX_SYS_UNITS;
+    }
+  }
+
+  -- Compute holdings if INCLUDE_CURRENT_BALANCE='Y'
+  IF (INCLUDE_CURRENT_BALANCE = 'Y') {
+    AGGR_UNITS = NVL(Folio_Closing_Balance, 0);
+    AGGR_AMOUNT = AGGR_UNITS * NVL(NAV, 0);
+    AGGR_CLOSING_BAL = AGGR_UNITS;
+  } ELSE {
+    AGGR_UNITS = 0;
+    AGGR_AMOUNT = 0;
+    AGGR_CLOSING_BAL = 0;
+  }
+
+  SCH_FUND_SUBFUND = 'S';
+  GOTO LIMITS_FETCHED;
+}
+
+IF (REC_SCHEME_LIMIT IS NOT NULL AND COUNT(REC_SCHEME_LIMIT) = 1) {
+  -- Same assignments as history path
+  MAX_VALUE = NVL(REC_SCHEME_LIMIT.max_value, 0);
+  MIN_VALUE = NVL(REC_SCHEME_LIMIT.min_value, 0);
+  MIN_UNITS = NVL(REC_SCHEME_LIMIT.min_units, 0);
+  MAX_UNITS = NVL(REC_SCHEME_LIMIT.max_units, 0);
+  MAX_PERC = NVL(REC_SCHEME_LIMIT.max_perc, 0);
+
+  IF (Sub_Trxn_Type = 'S') {
+    MULTIPLES = NVL(REC_SCHEME_LIMIT.sys_multiples, 0);
+  } ELSE {
+    MULTIPLES = NVL(REC_SCHEME_LIMIT.multiples, 0);
+  }
+
+  NEW_MIN_VALUE = NVL(REC_SCHEME_LIMIT.new_purch_minvalue, 0);
+  NEW_MAX_VALUE = NVL(REC_SCHEME_LIMIT.new_purch_maxvalue, 0);
+
+  MIN_SWP_AMOUNT = NVL(REC_SCHEME_LIMIT.min_swp_amount, 0);
+  MAX_SWP_AMOUNT = NVL(REC_SCHEME_LIMIT.max_swp_amount, 0);
+  MICRO_SIP_MINIMUM = NVL(REC_SCHEME_LIMIT.micro_sip_minimum, 0);
+  MICRO_SIP_MAXIMUM = NVL(REC_SCHEME_LIMIT.micro_sip_maximum, 0);
+  MIN_SYS_UNITS = NVL(REC_SCHEME_LIMIT.min_sys_units, 0);
+  MAX_SYS_UNITS = NVL(REC_SCHEME_LIMIT.max_sys_units, 0);
+  INCLUDE_CURRENT_BALANCE = NVL(REC_SCHEME_LIMIT.include_current_balance, 'N');
+
+  -- Apply systematic overrides
+  IF (Sub_Trxn_Type = 'M') {
+    MIN_VALUE = MICRO_SIP_MINIMUM;
+    MAX_VALUE = MICRO_SIP_MAXIMUM;
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+  } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+    MIN_VALUE = MIN_SWP_AMOUNT;
+    MAX_VALUE = MAX_SWP_AMOUNT;
+    NEW_MIN_VALUE = MIN_VALUE;
+    NEW_MAX_VALUE = MAX_VALUE;
+
+    IF (Sub_Trxn_Type = 'S') {
+      MIN_UNITS = MIN_SYS_UNITS;
+      MAX_UNITS = MAX_SYS_UNITS;
+    }
+  }
+
+  -- Compute holdings if INCLUDE_CURRENT_BALANCE='Y'
+  IF (INCLUDE_CURRENT_BALANCE = 'Y') {
+    AGGR_UNITS = NVL(Folio_Closing_Balance, 0);
+    AGGR_AMOUNT = AGGR_UNITS * NVL(NAV, 0);
+    AGGR_CLOSING_BAL = AGGR_UNITS;
+  } ELSE {
+    AGGR_UNITS = 0;
+    AGGR_AMOUNT = 0;
+    AGGR_CLOSING_BAL = 0;
+  }
+
+  SCH_FUND_SUBFUND = 'S';
+  GOTO LIMITS_FETCHED;
+}
+
+IF (COUNT(REC_SCHEME_LIMIT) > 1) {
+  RAISE_ERROR('Too Many Rows for Scheme: ' || Input.Scheme_Code ||
+              ' trxn type: ' || Input.Transaction_Type);
+}
+
+-- Priority 4: Sub-fund level (if scheme has parent_sub_fund and aggregate_flag='Y')
+IF (Parent_Sub_Fund_Code IS NOT NULL AND Sub_Fund_Aggregate_Flag = 'Y') {
+  -- Try history first
+  IF (REC_SUBFUND_HISTORY_LIMIT IS NOT NULL
+      AND COUNT(REC_SUBFUND_HISTORY_LIMIT) = 1) {
+
+    MAX_VALUE = NVL(REC_SUBFUND_HISTORY_LIMIT.max_value, 0);
+    MIN_VALUE = NVL(REC_SUBFUND_HISTORY_LIMIT.min_value, 0);
+    MIN_UNITS = NVL(REC_SUBFUND_HISTORY_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_SUBFUND_HISTORY_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_SUBFUND_HISTORY_LIMIT.max_perc, 0);
+
+    IF (Sub_Trxn_Type = 'S') {
+      MULTIPLES = NVL(REC_SUBFUND_HISTORY_LIMIT.sys_multiples, 0);
+    } ELSE {
+      MULTIPLES = NVL(REC_SUBFUND_HISTORY_LIMIT.multiples, 0);
+    }
+
+    NEW_MIN_VALUE = NVL(REC_SUBFUND_HISTORY_LIMIT.new_min_value, 0);
+    NEW_MAX_VALUE = NVL(REC_SUBFUND_HISTORY_LIMIT.new_max_value, 0);
+
+    MIN_SWP_AMOUNT = NVL(REC_SUBFUND_HISTORY_LIMIT.min_swp_amount, 0);
+    MAX_SWP_AMOUNT = NVL(REC_SUBFUND_HISTORY_LIMIT.max_swp_amount, 0);
+    MICRO_SIP_MINIMUM = NVL(REC_SUBFUND_HISTORY_LIMIT.micro_sip_minimum, 0);
+    MICRO_SIP_MAXIMUM = NVL(REC_SUBFUND_HISTORY_LIMIT.micro_sip_maximum, 0);
+    MIN_SYS_UNITS = NVL(REC_SUBFUND_HISTORY_LIMIT.min_sys_units, 0);
+    MAX_SYS_UNITS = NVL(REC_SUBFUND_HISTORY_LIMIT.max_sys_units, 0);
+
+    -- Apply systematic overrides
+    IF (Sub_Trxn_Type = 'M') {
+      MIN_VALUE = MICRO_SIP_MINIMUM;
+      MAX_VALUE = MICRO_SIP_MAXIMUM;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+    } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+      MIN_VALUE = MIN_SWP_AMOUNT;
+      MAX_VALUE = MAX_SWP_AMOUNT;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+
+      IF (Sub_Trxn_Type = 'S') {
+        MIN_UNITS = MIN_SYS_UNITS;
+        MAX_UNITS = MAX_SYS_UNITS;
+      }
+    }
+
+    -- Use aggregated holdings from sub-fund
+    -- AGGR_UNITS, AGGR_AMOUNT, AGGR_CLOSING_BAL already set in Variable Assignment
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'B';
+    GOTO LIMITS_FETCHED;
+  }
+
+  -- Fallback to current sub-fund limits
+  IF (REC_SUBFUND_SCHEME_LIMIT IS NOT NULL
+      AND COUNT(REC_SUBFUND_SCHEME_LIMIT) = 1) {
+
+    MAX_VALUE = NVL(REC_SUBFUND_SCHEME_LIMIT.max_value, 0);
+    MIN_VALUE = NVL(REC_SUBFUND_SCHEME_LIMIT.min_value, 0);
+    MIN_UNITS = NVL(REC_SUBFUND_SCHEME_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_SUBFUND_SCHEME_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_SUBFUND_SCHEME_LIMIT.max_perc, 0);
+
+    IF (Sub_Trxn_Type = 'S') {
+      MULTIPLES = NVL(REC_SUBFUND_SCHEME_LIMIT.sys_multiples, 0);
+    } ELSE {
+      MULTIPLES = NVL(REC_SUBFUND_SCHEME_LIMIT.multiples, 0);
+    }
+
+    NEW_MIN_VALUE = NVL(REC_SUBFUND_SCHEME_LIMIT.new_purch_minvalue, 0);
+    NEW_MAX_VALUE = NVL(REC_SUBFUND_SCHEME_LIMIT.new_purch_maxvalue, 0);
+
+    MIN_SWP_AMOUNT = NVL(REC_SUBFUND_SCHEME_LIMIT.min_swp_amount, 0);
+    MAX_SWP_AMOUNT = NVL(REC_SUBFUND_SCHEME_LIMIT.max_swp_amount, 0);
+    MICRO_SIP_MINIMUM = NVL(REC_SUBFUND_SCHEME_LIMIT.micro_sip_minimum, 0);
+    MICRO_SIP_MAXIMUM = NVL(REC_SUBFUND_SCHEME_LIMIT.micro_sip_maximum, 0);
+    MIN_SYS_UNITS = NVL(REC_SUBFUND_SCHEME_LIMIT.min_sys_units, 0);
+    MAX_SYS_UNITS = NVL(REC_SUBFUND_SCHEME_LIMIT.max_sys_units, 0);
+
+    -- Apply systematic overrides
+    IF (Sub_Trxn_Type = 'M') {
+      MIN_VALUE = MICRO_SIP_MINIMUM;
+      MAX_VALUE = MICRO_SIP_MAXIMUM;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+    } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+      MIN_VALUE = MIN_SWP_AMOUNT;
+      MAX_VALUE = MAX_SWP_AMOUNT;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+
+      IF (Sub_Trxn_Type = 'S') {
+        MIN_UNITS = MIN_SYS_UNITS;
+        MAX_UNITS = MAX_SYS_UNITS;
+      }
+    }
+
+    -- Use aggregated holdings from sub-fund
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'B';
+    GOTO LIMITS_FETCHED;
+  }
+
+  IF (COUNT(REC_SUBFUND_SCHEME_LIMIT) > 1) {
+    RAISE_ERROR('Too Many Rows for Sub Fund: ' || Input.Parent_Sub_Fund_Code ||
+                ' trxn type: ' || Input.Transaction_Type);
+  }
+}
+
+-- Priority 5: Fund level (if scheme has parent_fund and aggregate_flag='Y')
+IF (Parent_Fund_Code IS NOT NULL AND Fund_Aggregate_Flag = 'Y') {
+  -- Try history first
+  IF (REC_FUND_HISTORY_LIMIT IS NOT NULL
+      AND COUNT(REC_FUND_HISTORY_LIMIT) = 1) {
+
+    MAX_VALUE = NVL(REC_FUND_HISTORY_LIMIT.max_value, 0);
+    MIN_VALUE = NVL(REC_FUND_HISTORY_LIMIT.min_value, 0);
+    MIN_UNITS = NVL(REC_FUND_HISTORY_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_FUND_HISTORY_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_FUND_HISTORY_LIMIT.max_perc, 0);
+
+    IF (Sub_Trxn_Type = 'S') {
+      MULTIPLES = NVL(REC_FUND_HISTORY_LIMIT.sys_multiples, 0);
+    } ELSIF (Sub_Trxn_Type = 'M') {
+      MULTIPLES = NVL(REC_FUND_HISTORY_LIMIT.micro_multiples, 0);
+    } ELSE {
+      MULTIPLES = NVL(REC_FUND_HISTORY_LIMIT.multiples, 0);
+    }
+
+    NEW_MIN_VALUE = NVL(REC_FUND_HISTORY_LIMIT.new_min_value, 0);
+    NEW_MAX_VALUE = NVL(REC_FUND_HISTORY_LIMIT.new_max_value, 0);
+
+    MIN_SWP_AMOUNT = NVL(REC_FUND_HISTORY_LIMIT.min_swp_amount, 0);
+    MAX_SWP_AMOUNT = NVL(REC_FUND_HISTORY_LIMIT.max_swp_amount, 0);
+    MICRO_SIP_MINIMUM = NVL(REC_FUND_HISTORY_LIMIT.micro_sip_minimum, 0);
+    MICRO_SIP_MAXIMUM = NVL(REC_FUND_HISTORY_LIMIT.micro_sip_maximum, 0);
+    MIN_SYS_UNITS = NVL(REC_FUND_HISTORY_LIMIT.min_sys_units, 0);
+    MAX_SYS_UNITS = NVL(REC_FUND_HISTORY_LIMIT.max_sys_units, 0);
+
+    -- Apply systematic overrides
+    IF (Sub_Trxn_Type = 'M') {
+      MIN_VALUE = MICRO_SIP_MINIMUM;
+      MAX_VALUE = MICRO_SIP_MAXIMUM;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+    } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+      MIN_VALUE = MIN_SWP_AMOUNT;
+      MAX_VALUE = MAX_SWP_AMOUNT;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+
+      IF (Sub_Trxn_Type = 'S') {
+        MIN_UNITS = MIN_SYS_UNITS;
+        MAX_UNITS = MAX_SYS_UNITS;
+      }
+    }
+
+    -- Use aggregated holdings from fund level
+    -- FUND_AGGR_UNITS, FUND_AGGR_AMOUNT, FUND_AGGR_CLOSING_BAL already set
+    AGGR_UNITS = FUND_AGGR_UNITS;
+    AGGR_AMOUNT = FUND_AGGR_AMOUNT;
+    AGGR_CLOSING_BAL = FUND_AGGR_CLOSING_BAL;
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'F';
+    GOTO LIMITS_FETCHED;
+  }
+
+  -- Fallback to current fund limits
+  IF (REC_FUND_LIMIT IS NOT NULL AND COUNT(REC_FUND_LIMIT) = 1) {
+
+    MAX_VALUE = NVL(REC_FUND_LIMIT.max_value, 0);
+    MIN_VALUE = NVL(REC_FUND_LIMIT.min_value, 0);
+    MIN_UNITS = NVL(REC_FUND_LIMIT.min_units, 0);
+    MAX_UNITS = NVL(REC_FUND_LIMIT.max_units, 0);
+    MAX_PERC = NVL(REC_FUND_LIMIT.max_perc, 0);
+
+    IF (Sub_Trxn_Type = 'S') {
+      MULTIPLES = NVL(REC_FUND_LIMIT.sys_multiples, 0);
+    } ELSIF (Sub_Trxn_Type = 'M') {
+      MULTIPLES = NVL(REC_FUND_LIMIT.micro_multiples, 0);
+    } ELSE {
+      MULTIPLES = NVL(REC_FUND_LIMIT.multiples, 0);
+    }
+
+    NEW_MIN_VALUE = NVL(REC_FUND_LIMIT.new_min_value, 0);
+    NEW_MAX_VALUE = NVL(REC_FUND_LIMIT.new_max_value, 0);
+
+    MIN_SWP_AMOUNT = NVL(REC_FUND_LIMIT.min_swp_amount, 0);
+    MAX_SWP_AMOUNT = NVL(REC_FUND_LIMIT.max_swp_amount, 0);
+    MICRO_SIP_MINIMUM = NVL(REC_FUND_LIMIT.micro_sip_minimum, 0);
+    MICRO_SIP_MAXIMUM = NVL(REC_FUND_LIMIT.micro_sip_maximum, 0);
+    MIN_SYS_UNITS = NVL(REC_FUND_LIMIT.min_sys_units, 0);
+    MAX_SYS_UNITS = NVL(REC_FUND_LIMIT.max_sys_units, 0);
+
+    -- Apply systematic overrides
+    IF (Sub_Trxn_Type = 'M') {
+      MIN_VALUE = MICRO_SIP_MINIMUM;
+      MAX_VALUE = MICRO_SIP_MAXIMUM;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+    } ELSIF (Sub_Trxn_Type IN ('S', 'A')) {
+      MIN_VALUE = MIN_SWP_AMOUNT;
+      MAX_VALUE = MAX_SWP_AMOUNT;
+      NEW_MIN_VALUE = MIN_VALUE;
+      NEW_MAX_VALUE = MAX_VALUE;
+
+      IF (Sub_Trxn_Type = 'S') {
+        MIN_UNITS = MIN_SYS_UNITS;
+        MAX_UNITS = MAX_SYS_UNITS;
+      }
+    }
+
+    -- Use aggregated holdings from fund level
+    AGGR_UNITS = FUND_AGGR_UNITS;
+    AGGR_AMOUNT = FUND_AGGR_AMOUNT;
+    AGGR_CLOSING_BAL = FUND_AGGR_CLOSING_BAL;
+    INCLUDE_CURRENT_BALANCE = 'N';
+    SCH_FUND_SUBFUND = 'F';
+    GOTO LIMITS_FETCHED;
+  }
+
+  IF (COUNT(REC_FUND_LIMIT) > 1) {
+    RAISE_ERROR('Too Many Rows for Fund: ' || Parent_Fund_Code ||
+                ' trxn type: ' || Input.Transaction_Type);
+  }
+}
+
+LIMITS_FETCHED:
+-- Hierarchical limit fetching complete
+
+
+
+SECTION 2: PERFORM VALIDATIONS
+
+
+This section contains all limit checks and validations based on the limits
+fetched from the hierarchical limit logic above.
+
+
+2.1: Skip Validation if APPLY_LIMITS = 'X'
+
+
+IF (APPLY_LIMITS = 'X') {
+  -- Skip all limit validations
+  RETURN SUCCESS;
+}
+
+
+2.2: Call Limit Fetching Procedure
+
+
+CALL plp_schfundsfund_trxn_limit(
+  Input.Folio_Number,
+  Input.Transaction_Type,
+  Input.Scheme_Code,
+  NAV,
+  Input.Trade_Date,
+  SYS_REG_DATE,
+  Sub_Trxn_Type,
+  -- Output parameters:
+  SCH_FUND_SUBFUND,
+  MAX_VALUE,
+  MIN_VALUE,
+  MIN_UNITS,
+  MAX_UNITS,
+  MAX_PERC,
+  MULTIPLES,
+  NEW_MIN_VALUE,
+  NEW_MAX_VALUE,
+  AGGR_UNITS,
+  AGGR_AMOUNT,
+  AGGR_CLOSING_BAL,
+  INCLUDE_CURRENT_BALANCE,
+  Frequency,
+  Insurance_ID,
+  Swap_Option,
+  Auto_Amount
+);
+
+
+2.3: Apply AMC-Specific Overrides to Limits
+
+
+-- Accredited Investor Override
+IF (nvl(Input.Accredit_Inv_Flag, 'N') = 'Y') {
+  MIN_VALUE = Accredited_Inv_Limit;
+  NEW_MIN_VALUE = MIN_VALUE;
+}
+
+-- AMC L Broker Invest Limit
+IF (Input.AMC_Code = 'L' AND Input.Transaction_Type LIKE 'PRI%') {
+  MIN_VALUE = Broker_Invest_Limit;
+  NEW_MIN_VALUE = MIN_VALUE;
+}
+
+-- AMC 02 Tax Status/Occupation Limits
+IF (Input.AMC_Code = '02'
+    AND Input.Transaction_DB_CR = 'P'
+    AND Input.Scheme_Code IN ('01', '02')) {
+
+  IF (Tax_Status_Code IS NOT NULL AND Occupation_Code IS NOT NULL) {
+    IF (Tax_Status_Occ_Limits_Record IS NOT NULL) {
+      IF (Input.Scheme_Code = '01') {
+        NEW_MIN_VALUE = Tax_Status_Occ_Limits_Record.new_pur_min_value;
+        NEW_MAX_VALUE = Tax_Status_Occ_Limits_Record.new_pur_max_value;
+      } ELSIF (Input.Scheme_Code = '02') {
+        MIN_VALUE = Tax_Status_Occ_Limits_Record.addl_pur_min_value;
+        MAX_VALUE = Tax_Status_Occ_Limits_Record.addl_pur_max_value;
+      }
+    }
+  }
+}
+
+-- Adjust limits for new purchase
+IF (nvl(Investor_Plan_Exists, 0) = 0 OR New_Purchase_Type_Flag = 'Y') {
+  MAX_VALUE = nvl(NEW_MAX_VALUE, 0);
+  MIN_VALUE = nvl(NEW_MIN_VALUE, 0);
+}
+
+-- Include current balance adjustment
+IF (INCLUDE_CURRENT_BALANCE = 'Y') {
+  MIN_VALUE = nvl(NEW_MIN_VALUE, 0);
+  SUM_Purchase_Amt_DET = nvl(AGGR_AMOUNT, 0);
+  SUM_Purchase_Units_DET = nvl(AGGR_UNITS, 0);
+}
+
+
+
+
+
+2.3.1: Prospect Folio Adjustment (AMC 'Y')
+
+
+IF (AMC_Code = 'Y' 
+    AND Input.Transaction_Type = 'P' 
+    AND Prospect_Folio_Count > 0 
+    AND CDT_Count_For_Prospect = 0) {
+  New_Purchase_Type_Flag = 'Y';
+}
+
+
+2.3.2: Accredited Investor Limit Override (SIF)
+
+
+IF (Accredited_Investor_Flag = 'Y' 
+    AND OTHER_AMC_PARAMETER = 'SIF' 
+    AND SIF_Folio_Exists_Count = 0 
+    AND Accredited_Investor_Limit > 0) {
+  MIN_VALUE = Accredited_Investor_Limit;
+  NEW_MIN_VALUE = Accredited_Investor_Limit;
+}
+
+
+2.3.3: Online Cart SIF Minimum Override
+
+
+IF (ALLOW_CARTING_ONLINE_SIF_FLAG = 'Y' 
+    AND Cart_Reference_Number IS NOT NULL 
+    AND Online_User_Flag = 'Y' 
+    AND OTHER_AMC_PARAMETER = 'SIF') {
+  Skip_Standard_Minimum_Check = 'Y';
+}
+
+
+2.3.4: SIF Existing Investor Adjustment
+
+
+IF (OTHER_AMC_PARAMETER = 'SIF' AND SIF_Folio_Exists_Count > 0) {
+  Apply_Existing_Investor_Limits = 'Y';
+}
+
+
+2.7: Purchase Units Validations (Unit-Based)
+
+
+IF (Input.Transaction_Sign = '+'
+    AND Input.Transaction_Mode <> 'R'
+    AND Units_Amount_Flag = 'U'
+    AND CHECK_LIMIT_PLUS = 'Y') {
+
+  -- Max units and percentage checks
+  IF (SCH_FUND_SUBFUND = 'S') {
+    IF ((SUM_Purchase_Units_CDT + SUM_Purchase_Units_DET) > nvl(MAX_UNITS, 0)) {
+      RAISE_ERROR('Transaction units falls above unit limits for this Trxn_type');
+    }
+
+    IF (nvl(Scheme_Controls_Closing_Balance, 0) > 0) {
+      PERCENT = ((SUM_Purchase_Units_CDT + SUM_Purchase_Units_DET) / Scheme_Controls_Closing_Balance) * 100;
+      IF (PERCENT > nvl(MAX_PERC, 0)) {
+        RAISE_WARNING('Transaction units falls above Percentage limits for this Trxn_type');
+      }
+    }
+  } ELSE {
+    IF ((SUM_Purchase_Units_CDT + AGGR_UNITS) > nvl(MAX_UNITS, 0)) {
+      RAISE_ERROR('Transaction units falls above unit limits for this Trxn_type');
+    }
+
+    IF (nvl(AGGR_CLOSING_BAL, 0) > 0) {
+      PERCENT = ((SUM_Purchase_Units_CDT + AGGR_UNITS) / AGGR_CLOSING_BAL) * 100;
+      IF (PERCENT > nvl(MAX_PERC, 0)) {
+        RAISE_WARNING('Transaction units falls above Percentage limits for this Trxn_type');
+      }
+    }
+  }
+
+  -- Min units check
+  IF (SCH_FUND_SUBFUND = 'S') {
+    IF (INCLUDE_CURRENT_BALANCE = 'Y') {
+      IF ((Current_Purchase_Units + SUM_Purchase_Units_DET) < nvl(MIN_UNITS, 0)
+          AND Input.Transaction_Mode <> 'R') {
+        RAISE_ERROR('Transaction units falls below unit limits for this Trxn_type');
+      }
