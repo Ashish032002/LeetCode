@@ -1,0 +1,184 @@
+{
+  "transaction": {
+    "navSerialNo": 0,
+    "instrumentNumber": "",
+    "purchaseId": "",
+    "ipoCdtFlag": "",
+    "transactionSource": "CHANNEL",
+    "subSourceProgram": "",
+    "subTransactionType": "N",
+    "goalId": "",
+    "goalTriggerValue": 0,
+    "goalTargetValue": 0,
+    "goalRetirementAge": 0,
+    "freedomSwpScheme": "",
+    "targetNfoScheme": "",
+    "clientTransactionNumber": "01a0f0be-aacd-7726-b8d1-bff42ca46d4b",
+    "seqNo": "",
+    "slNo": "",
+    "userTransactionNo": "172082354",
+    "transactionDate": {
+      "timestamp": "2026-09-30T10:47:02.000000000Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "bank": {
+      "name": "Axis Bank Ltd",
+      "holderName": "",
+      "accountNumber": "5749539119",
+      "accountType": "SAVINGS_ACCOUNT",
+      "branch": "TIMES SQUARE BR MUM MH",
+      "ifscCode": "",
+      "neftIfscCode": "UTIB0005115",
+      "rtgsIfscCode": "",
+      "micr": "400211236",
+      "address": {
+        "line1": "",
+        "line2": "",
+        "line3": "",
+        "city": "MUMBAI",
+        "state": "",
+        "country": ""
+      },
+      "bankCode": ""
+    },
+    "entryDate": {
+      "timestamp": "2026-09-30T10:47:02.000000000Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "amount": {
+      "amountValue": {
+        "unscaledValue": "0",
+        "scale": 2
+      },
+      "schemeCurrency": "INR"
+    },
+    "roundUpFlag": "N",
+    "barcodeNumber": "",
+    "applicationNumber": "172082354",
+    "omTransactionFlag": "OM_TRANSACTION_TYPE_UNSPECIFIED",
+    "units": {
+      "unscaledValue": "1564400",
+      "scale": 3
+    },
+    "remarks": "30-09-2026$10:30:35$192.168.168.117$172082354",
+    "lienInvocationFlag": "",
+    "lienRevocationFlag": "",
+    "installmentNumber": 0,
+    "packageName": "",
+    "paperlessFlag": false,
+    "groupOrderId": "",
+    "dealRefNo": "",
+    "exchangeDcFlag": "",
+    "postValidateFlag": "",
+    "npoForm": false,
+    "npoDeclaration": false,
+    "npoRegistrationNumber": "",
+    "uboDeclaration": "",
+    "listedAssociate": "",
+    "stockExchange": "",
+    "uboNames": [],
+    "uboCategories": [],
+    "uboPepFlags": [],
+    "uboPans": [],
+    "paymentMechanism": "D",
+    "uboDeclarationFlag": "",
+    "allUnits": true,
+    "retiredPlanOption": "",
+    "parentSubFundCode": "",
+    "instrumentAccountType": "",
+    "kycMandate": "",
+    "transactionNature": "",
+    "transactionMode": "W",
+    "specialProduct": "",
+    "historic": false,
+    "dematPurchaseTransaction": false,
+    "settlementNumber": "",
+    "supplementaryFeedFile": false,
+    "creditFlag": "CREDIT_FLAG_N",
+    "allotmentMode": "ALLOTMENT_MODE_P",
+    "instrumentBank": {
+      "name": "",
+      "holderName": "",
+      "accountNumber": "",
+      "accountType": "SAVINGS_ACCOUNT",
+      "branch": "",
+      "ifscCode": "",
+      "neftIfscCode": "",
+      "rtgsIfscCode": "",
+      "micr": "",
+      "bankCode": ""
+    },
+    "scheme": {
+      "schemeCode": "099G",
+      "reInvest": "GROWTH",
+      "autoSwp": "",
+      "autoSwitchOption": ""
+    },
+    "taxStatus": "INDIVIDUAL",
+    "eventNo": "",
+    "redemptionOtpFlag": "B"
+  },
+  "leiNumber": "",
+  "amc": {
+    "amcCode": "L",
+    "amcReferenceNumber": "",
+    "depositBankAccountNumber": "",
+    "uboEffectiveDate": "",
+    "transactionNature": "",
+    "checkDigitNumber": ""
+  },
+  "dpId": "",
+  "folioNo": "36112531",
+  "broker": {
+    "subBrokerArn": "ARN-0019",
+    "riaCode": "",
+    "euin": "",
+    "euinDeclarationFlag": false,
+    "brokerDealerCode": "AXISBANK",
+    "locationCode": "B1"
+  },
+  "demography": {
+    "title": "TITLE_UNSPECIFIED",
+    "name": {
+      "firstName": "VISHAL VIJAY SHILKAR",
+      "middleName": "",
+      "lastName": ""
+    },
+    "gender": "MALE",
+    "countryCode": "",
+    "occupation": "OCCUPATION_UNSPECIFIED",
+    "pekrn": "",
+    "pan": "BZNPS5671Q",
+    "pekrnCategory": "",
+    "panExemptCategory": "N",
+    "mobileBelongsTo": "SE",
+    "emailBelongsTo": "SE",
+    "otpEmail": "",
+    "otpMobile": "",
+    "otpSentTo": "",
+    "emailRelationship": "",
+    "mobileRelationship": "",
+    "dobProof": "",
+    "dateOfBirth": {
+      "timestamp": "1988-02-24T00:00:00.000000000Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "officePhoneNumber": "",
+    "residentialPhoneNumber": "918097112781",
+    "officeFaxNumber": "",
+    "residentialFaxNumber": "",
+    "nationality": ""
+  },
+  "userCode": "AXISBANK",
+  "jointHolders": [],
+  "toSchemeCode": "055A",
+  "can": "",
+  "switchIn": {
+    "siFlag": 0
+  },
+  "switchOut": {
+    "dupResolutionFlag": "DRF_UNSPECIFIED",
+    "redeemBasis": "",
+    "soFlag": 0
+  }
+}
