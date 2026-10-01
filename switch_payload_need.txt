@@ -1,0 +1,635 @@
+{
+  "transaction": {
+    "fromDate":{
+      "timestamp": "2026-01-01T00:15:34.000000667Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "toDate": {
+      "timestamp": "2026-01-01T00:15:34.000000667Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "navSerialNo": 345,
+    "dbCrType":"S",
+    "instrumentNumber": "123",
+    "purchaseId": "9383296781",
+    "ipoCdtFlag": "C",
+    "postingDate": {
+      "timestamp": "1970-01-01T00:12:49.000000449Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "transactionSource": "MFU",
+    "subSourceProgram": "LIQUID_ETF",
+    "subTransactionType": "PIF4",
+    "goalId": "2167121",
+    // "goalTargetScheme": "RetirementFund2025",
+    "goalTriggerValue": -500000,
+    "goalTargetValue": 2000000,
+    "goalRetirementAge": 60,
+    "freedomSwpScheme": "11",
+    "targetNfoScheme": "11",
+    "id": "a1b2c3d4-e5f6-a1b2-c3d4-e5f6a1b2c3d4",
+    "clientTransactionNumber": "12345",
+    "seqNo": "Home application",
+    "slNo": "TCP Innovative",
+    "userTransactionNo": "125260380000096",
+    "transactionDate": {
+      "timestamp": "1970-01-01T00:12:49.000000449Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "bank": {
+      "name": "HDFC Bank",
+      "holderName": "Rahul Mehta",
+      "accountNumber": "1234543432",
+      "accountType": "CURRENT_ACCOUNT",
+      "isDefaultBank": true,
+      "branch": "Bandra West",
+      "ifscCode": "HDFC0000001",
+      "neftIfscCode": "HDFC0000001",
+      "rtgsIfscCode": "HDFC0000001",
+      "micr": "628859",
+      "address": {
+        "line1": "789, Hill Road",
+        "line2": "Bandra",
+        "line3": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "pinCode": 400050
+      },
+      "multiBank": true,
+      "bankCode": "HDFC"
+    },
+    "startDate": {
+      "timestamp": "1970-01-01T00:04:43.000000822Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "endDate": {
+      "timestamp": "1970-01-01T00:15:42.000000399Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "entryDate": {
+      "timestamp": "2025-06-16T00:01:23.000000672Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "tradeDate": {
+      "timestamp": "2013-12-31T00:00:00Z",
+      "timezone": "UTC"
+    },
+    "amount": {
+      "amountValue": {
+        "unscaledValue": "100000",
+        "scale": 2
+      },
+      "schemeCurrency": "INR"
+    },
+    "roundUpFlag": "Y",
+    "barcodeNumber": "67890",
+    "applicationNumber": "APP54321",
+    "omTransactionFlag": "N",
+    "units": {
+      "unscaledValue": "",
+      "scale": 2
+    },
+    "remarks": "Representative copying input",
+    "lienInvocationFlag": "false",
+    "lienRevocationFlag": "false",
+    "installmentNumber": 761,
+    "instrumentDate": {
+      "timestamp": "2026-03-03T00:13:30.000000673Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "maturitySwitchOption": false,
+    "packageName": "Smart Switch-Innovat",
+    "payInMinorWhitelistFlag": true,
+    "payOutMinorWhitelistFlag": false,
+    "paperlessFlag": false,
+    "groupOrderId": "a1b2c3d4-e5f6-7890-1234-e5f6a1b2c3d4",
+    "whatsAppConsentFlag": true,
+    "dealRefNo": "DEAL-001",
+    "exchangeDcFlag": "D",
+    "reinvestOption": "Y",
+    "postValidateFlag": "N",
+    "npoApplicableDate": {
+      "timestamp": "1970-01-01T00:10:23.000000148Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "npoForm": false,
+    "npoDeclaration": false,
+    "npoRegistrationNumber": "NPO-98765",
+    "uboApplicableDate": {
+      "timestamp": "1970-01-01T00:08:11.000000622Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "uboDeclaration": "UBO declaration details",
+    "listedAssociate": "Y",
+    "stockExchange": "NSE",
+    "uboNames": [
+      "UBO Name One",
+      "UBO Name Two"
+    ],
+    "uboCategories": [
+      "Category A",
+      "Category B"
+    ],
+    "uboPepFlags": [
+      "Y",
+      "N"
+    ],
+    "uboPans": [
+      "ABCDE1234F",
+      "FGHIJ5678K"
+    ],
+
+    "paymentMechanism": "CA",
+    "uboDeclarationFlag": "Y",
+    "nomineeFormSignedByPoa": true,
+    "allUnits": false,
+    "retiredPlanOption": "A",
+    "parentSubFundCode": "RSF",
+    "thirdPartyPaymentFlag": false,
+    "instrumentAccountType": "NRE",
+    "kycMandate": "Y",
+    "bankWhitelistFlag": true,
+    "transactionNature": "NEW",
+    "transactionMode": "N",
+    "specialProduct": "NONE",
+    "historic": false,
+    "dematPurchaseTransaction": false,
+    "settlementNumber": "SETTLE-001",
+    "supplementaryFeedFile": false,
+    "creditFlag": "CREDIT_FLAG_Y",
+    "allotmentMode": "ALLOTMENT_MODE_P",
+    "instrumentBank": {
+      "name": "ICICI Bank",
+      "holderName": "Priya Sharma",
+      "accountNumber": "987654321098",
+      "accountType": "SAVINGS_ACCOUNT",
+      "isDefaultBank": false,
+      "branch": "Mumbai Main Branch",
+      "ifscCode": "ICIC0000001",
+      "neftIfscCode": "ICIC0000001",
+      "rtgsIfscCode": "ICIC0000001",
+      "micr": "400229002",
+      "address": {
+        "line1": "123, Financial Street",
+        "line2": "Fort",
+        "line3": "",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "country": "India",
+        "pinCode": 400001
+      },
+      "multiBank": false,
+      "bankCode": "ICICI"
+    },
+    "scheme": {
+      "schemeCode": "SAC",
+      "reInvest": "PAYOUT",
+      "autoSwp": "Y",
+      "autoSwitchOption": "A"
+    },
+    "taxStatus": "PENSION_FUND",
+    "eventNo": "interface",
+    "autoSwitchOption": "A",
+    "redemptionOtpFlag": "Y"
+  },
+  "leiNumber": "5493001KJTIIGC8Y1R12",
+  "switchIn": {
+    "siFlag": 1,
+    "firstSiPostingDateAfterEntry": {
+      "timestamp": "1970-01-01T00:05:38.000000976Z",
+      "timezone": "Asia/Kolkata"
+    }
+  },
+  "switchOut": {
+    "dupResolutionFlag": "DRF_N",
+    "redeemBasis": "Units",
+    "soFlag": 1,
+    "firstCommonBusinessDayAfterFirstSiPostingDate": {
+      "timestamp": "1970-01-01T00:05:38.000000976Z",
+      "timezone": "Asia/Kolkata"
+    }
+  },
+  "amc": {
+    "amcCode": "G",
+    "amcReferenceNumber": "000769181831",
+    "depositBankAccountNumber": "998877665544",
+    "uboEffectiveDate": "2023-01-01",
+    "personalIdNumber": 789,
+    "transactionNature": "NEW",
+    "milestoneTargetAmount": {
+      "amountValue": {
+        "unscaledValue": "500000",
+        "scale": 2
+      },
+      "schemeCurrency": "INR"
+    },
+    "milestoneTenure": 8,
+    "checkDigitNumber": "CD-101"
+  },
+  "dpId": "",
+  "folioNo": "",
+  "broker": {
+    "subBrokerArn": "",
+    "riaCode": "RIA-1122",
+    "euin": "E012345",
+    "euinDeclarationFlag": true,
+    "brokerDealerCode": "ARN-3284",
+    "locationCode": "RAKESB1"
+  },
+  "demography": {
+    "title": "MR",
+    "name": {
+      "firstName": "Rahul",
+      "middleName": "Kumar",
+      "lastName": "Mehta"
+    },
+    "gender": "MALE",
+    "countryCode": "IN",
+    "occupation": "AGRICULTURIST",
+    "grossAnnualIncome": {
+      "amountValue": {
+        "unscaledValue": "500000",
+        "scale": 2
+      },
+      "schemeCurrency": "INR"
+    },
+    "pekrn": "PEKRN67890",
+    "pan": "XXXXX5836X",
+    "pekrnCategory": "Category B",
+    "panExemptCategory": "Exempt Category C",
+    "mobileBelongsTo": "DC",
+    "emailBelongsTo": "SE",
+    "otpEmail": "rahul.otp@example.com",
+    "otpMobile": "8765432108",
+    "otpSentTo": "MOBILE",
+    "emailRelationship": "Self",
+    "mobileRelationship": "Self",
+    "dobProof": "Aadhaar Card",
+    "dateOfBirth": {
+      "timestamp": "2010-01-01T00:12:49.000000449Z",
+      "timezone": "Asia/Kolkata"
+    },
+    "fatfDeclaration": false,
+    "officePhoneNumber": "2233445566",
+    "residentialPhoneNumber": "8765432109",
+    "officeFaxNumber": "2233445567",
+    "residentialFaxNumber": "8765432108",
+    "country": {
+      "citizen": "Indian",
+      "taxResidency1": "USA",
+      "taxResidency2": "UK",
+      "taxResidency3": "Canada"
+    },
+    "nationality": "Indian"
+  },
+  "userCode": "TST4707290",
+  "guardian": {
+    "demography": {
+      "title": "MRS",
+      "name": {
+        "firstName": "Anita",
+        "middleName": "",
+        "lastName": "Mehta"
+      },
+      "gender": "FEMALE",
+      "countryCode": "IN",
+      "occupation": "STUDENT",
+      "pekrn": "PEKRN-G-123",
+      "pan": "MNOPQ4321Z",
+      "pekrnCategory": "Category G",
+      "panExemptCategory": "Exempt Category G",
+      "emails": [
+        "priya.sharma@example.com",
+        "priya01.sharma@example.com"
+      ],
+      "mobileBelongsTo": "DC",
+      "mobiles": [
+        "9876543210",
+        "9876543212"
+      ],
+      "emailBelongsTo": "SE",
+      "otpEmail": "anita.otp@example.com",
+      "otpMobile": "7654321097",
+      "otpSentTo": "EMAIL",
+      "emailRelationship": "Spouse",
+      "mobileRelationship": "Spouse",
+      "dobProof": "Passport",
+      "dateOfBirth": {
+        "timestamp": "1990-01-01T00:12:49.000000449Z",
+        "timezone": "Asia/Kolkata"
+      },
+      "fatfDeclaration": false,
+      "officePhoneNumber": "3344556677",
+      "residentialPhoneNumber": "7654321098",
+      "officeFaxNumber": "3344556678",
+      "residentialFaxNumber": "7654321097",
+      "country": {
+        "citizen": "Indian",
+        "taxResidency1": "USA",
+        "taxResidency2": "UK",
+        "taxResidency3": "Canada"
+      },
+      "nationality": "Indian"
+    },
+    "relation": "MOTHER",
+    "address": {
+      "line1": "456, Park Avenue",
+      "line2": "Bandra",
+      "line3": "",
+      "city": "Mumbai",
+      "state": "Maharashtra",
+      "country": "India",
+      "pinCode": 400050
+    }
+  },
+  "poa": {
+    "demography": {
+      "title": "MRS",
+      "name": {
+        "firstName": "Anita",
+        "middleName": "",
+        "lastName": "Mehta"
+      },
+      "gender": "FEMALE",
+      "countryCode": "IN",
+      "occupation": "HOMEMAKER",
+      "grossAnnualIncome": {
+        "amountValue": {
+          "unscaledValue": "500000",
+          "scale": 2
+        },
+        "schemeCurrency": "INR"
+      },
+      "pekrn": "PEKRN-G-123",
+      "pan": "MNOPQ4321Z",
+      "pekrnCategory": "Category G",
+      "panExemptCategory": "Exempt Category G",
+      "emails": [
+        "priya.sharma@example.com",
+        "priya01.sharma@example.com"
+      ],
+      "mobileBelongsTo": "DC",
+      "mobiles": [
+        "9876543210",
+        "9876543212"
+      ],
+      "emailBelongsTo": "PM",
+      "otpEmail": "anita.otp@example.com",
+      "otpMobile": "7654321097",
+      "otpSentTo": "EMAIL",
+      "emailRelationship": "Spouse",
+      "mobileRelationship": "Spouse",
+      "dobProof": "Passport",
+      "dateOfBirth": {
+        "timestamp": "2001-01-01T00:12:49.000000449Z",
+        "timezone": "Asia/Kolkata"
+      },
+      "fatfDeclaration": false,
+      "officePhoneNumber": "3344556677",
+      "residentialPhoneNumber": "7654321098",
+      "officeFaxNumber": "3344556678",
+      "residentialFaxNumber": "7654321097",
+      "country": {
+        "citizen": "Indian",
+        "taxResidency1": "USA",
+        "taxResidency2": "UK",
+        "taxResidency3": "Canada"
+      },
+      "nationality": "Indian",
+      "cin": "CIN123"
+    },
+    "relation": "FATHER",
+    "address": {
+      "line1": "404, POA Residence",
+      "line2": "Koramangala",
+      "line3": "",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "pinCode": 560034
+    }
+  },
+  "jointHolders": [
+    {
+      "jhId": "jh-uuid-1",
+      "relation": "SON",
+      "address": {
+        "line1": "202, JH Apartments",
+        "line2": "Kalyani Nagar",
+        "line3": "",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "country": "India",
+        "pinCode": 411006
+      },
+      "fatca": [
+        {
+          "fatcaId": "jh-fatca-uuid-1",
+          "aadhaarNumber": "345678901234",
+          "fatherName": {
+            "firstName": "Mahesh",
+            "middleName": "",
+            "lastName": "Jain"
+          },
+          "spouseName": {
+            "firstName": "Pooja",
+            "middleName": "",
+            "lastName": "Jain"
+          },
+          "placeOfBirth": "Pune",
+          "countryOfBirth": "India",
+          "addressType": "RESIDENTIAL",
+          "hasTaxResidencyOutsideIndia": true,
+          "taxResidency": [
+            {
+              "country": "Germany",
+              "taxId": "TIN-DE-111",
+              "tinReason": "Reason E",
+              "tinRemarks": "Remarks E",
+              "countryTax": "Germany"
+            },
+            {
+              "country": "France",
+              "taxId": "TIN-FR-222",
+              "tinReason": "Reason F",
+              "tinRemarks": "Remarks F",
+              "countryTax": "France"
+            }
+          ],
+          "annualIncomeSlab": "BELOW_1_LAKH",
+          "sourceOfWealth": "SALARY",
+          "sourceOfFunds": "Savings",
+          "pep": false,
+          "declaration": "JH Declaration 1",
+          "corporateServices": "JH Corp Services 1",
+          "occupation": "SERVICE"
+        }
+      ],
+      "demography": {
+        "title": "MR",
+        "name": {
+          "firstName": "Amit",
+          "middleName": "",
+          "lastName": "Jain"
+        },
+        "cin": "CIN",
+        "gender": "MALE",
+        "countryCode": "IN",
+        "occupation": "ENGINEER",
+        "pekrn": "PEKRN-JH1",
+        "pan": "RSTUV8765P",
+        "pekrnCategory": "Category JH1",
+        "panExemptCategory": "Exempt JH1",
+        "emails": [
+          "priya.sharma@example.com",
+          "priya01.sharma@example.com"
+        ],
+        "mobileBelongsTo": "DC",
+        "mobiles": [
+          "9876543210",
+          "9876543212"
+        ],
+        "emailBelongsTo": "SE",
+        "otpEmail": "amit.otp@example.com",
+        "otpMobile": "6543210986",
+        "otpSentTo": "MOBILE",
+        "emailRelationship": "Self",
+        "mobileRelationship": "Self",
+        "dobProof": "Aadhaar",
+        "dateOfBirth": {
+          "timestamp": "1999-01-01T00:12:49.000000449Z",
+          "timezone": "Asia/Kolkata"
+        },
+        "fatfDeclaration": false,
+        "officePhoneNumber": "4455667788",
+        "residentialPhoneNumber": "6543210987",
+        "officeFaxNumber": "4455667789",
+        "residentialFaxNumber": "6543210986",
+        "country": {
+          "citizen": "Indian",
+          "taxResidency1": "Germany",
+          "taxResidency2": "France",
+          "taxResidency3": ""
+        },
+        "nationality": "Indian"
+      },
+      "isValidPan": true,
+      "kycStatus": "ACTIVE",
+      "consentReceived": false,
+      "idName": "Amit Jain",
+      "cKycNo": "CKYC-JH1"
+    },
+    {
+      "jhId": "jh-uuid-1",
+      "relation": "SON",
+      "address": {
+        "line1": "202, JH Apartments",
+        "line2": "Kalyani Nagar",
+        "line3": "",
+        "city": "Pune",
+        "state": "Maharashtra",
+        "country": "India",
+        "pinCode": 411006
+      },
+      "fatca": [
+        {
+          "fatcaId": "jh-fatca-uuid-1",
+          "aadhaarNumber": "345678901234",
+          "fatherName": {
+            "firstName": "Mahesh",
+            "middleName": "",
+            "lastName": "Jain"
+          },
+          "spouseName": {
+            "firstName": "Pooja",
+            "middleName": "",
+            "lastName": "Jain"
+          },
+          "placeOfBirth": "Pune",
+          "countryOfBirth": "India",
+          "addressType": "RESIDENTIAL",
+          "hasTaxResidencyOutsideIndia": true,
+          "taxResidency": [
+            {
+              "country": "Germany",
+              "taxId": "TIN-DE-111",
+              "tinReason": "Reason E",
+              "tinRemarks": "Remarks E",
+              "countryTax": "Germany"
+            },
+            {
+              "country": "France",
+              "taxId": "TIN-FR-222",
+              "tinReason": "Reason F",
+              "tinRemarks": "Remarks F",
+              "countryTax": "France"
+            }
+          ],
+          "annualIncomeSlab": "BELOW_1_LAKH",
+          "sourceOfWealth": "SALARY",
+          "sourceOfFunds": "Savings",
+          "pep": false,
+          "declaration": "JH Declaration 1",
+          "corporateServices": "JH Corp Services 1",
+          "occupation": "SERVICE"
+        }
+      ],
+      "demography": {
+        "title": "MR",
+        "name": {
+          "firstName": "Amit",
+          "middleName": "",
+          "lastName": "Jain"
+        },
+        "cin": "CIN",
+        "gender": "MALE",
+        "countryCode": "IN",
+        "occupation": "ENGINEER",
+        "pekrn": "PEKRN-JH1",
+        "pan": "RSTUV8765P",
+        "pekrnCategory": "Category JH1",
+        "panExemptCategory": "Exempt JH1",
+        "emails": [
+          "priya.sharma@example.com",
+          "priya01.sharma@example.com"
+        ],
+        "mobileBelongsTo": "DC",
+        "mobiles": [
+          "9876543210",
+          "9876543212"
+        ],
+        "emailBelongsTo": "SE",
+        "otpEmail": "amit.otp@example.com",
+        "otpMobile": "6543210986",
+        "otpSentTo": "MOBILE",
+        "emailRelationship": "Self",
+        "mobileRelationship": "Self",
+        "dobProof": "Aadhaar",
+        "dateOfBirth": {
+          "timestamp": "1999-01-01T00:12:49.000000449Z",
+          "timezone": "Asia/Kolkata"
+        },
+        "fatfDeclaration": false,
+        "officePhoneNumber": "4455667788",
+        "residentialPhoneNumber": "6543210987",
+        "officeFaxNumber": "4455667789",
+        "residentialFaxNumber": "6543210986",
+        "country": {
+          "citizen": "Indian",
+          "taxResidency1": "Germany",
+          "taxResidency2": "France",
+          "taxResidency3": ""
+        },
+        "nationality": "Indian"
+      },
+      "isValidPan": true,
+      "kycStatus": "ACTIVE",
+      "consentReceived": false,
+      "idName": "Amit Jain",
+      "cKycNo": "CKYC-JH1"
+    }
+  ],
+  "toSchemeCode": "FRG",
+  "can": "16195RBA40"
+}
